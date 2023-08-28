@@ -1,0 +1,32 @@
+{
+  "name": "Alice",
+  "age": 30,
+  "gender": "female",
+  "is_parent": true,
+  "nested_array": [[0,1,2,3],[4,5]],
+  "child": "Bob",
+  "children": [
+    {
+      "name": "Charlie",
+      "age": 5,
+      "gender": "male"
+    },
+    {
+      "name": "David",
+      "age": 2,
+      "gender": "male",
+      "children": [
+        {
+          "name": "Davidson",
+          "age": 5,
+          "gender": "male"
+        },
+        {
+          "name": "Junior",
+          "age": 2,
+          "gender": "male"
+        }
+      ]
+    }
+  ]
+}

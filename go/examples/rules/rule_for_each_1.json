@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "created": "2023-03-29"
+  },
+  "actions": {
+    "report": {
+      "comment": "each action is determined by its tag and will have action specific arguments",
+      "format": "json"
+    }
+  },
+  "for_all": {
+    "path": "members",
+    "comment": "for all the members",
+    "element": "member",
+    "for_some": {
+      "path": "member.children",
+      "comment": "there is a child",
+      "element": "child",
+      "condition": {
+        "operation": "AND",
+        "args": [
+          {
+            "field": "member.age",
+            "operator": "=",
+            "value": 31,
+            "comment": "all the members older than 30 have a child with the same name"
+          },
+          {
+            "field1": "member.name",
+            "operator": "=",
+            "field2": "child.name",
+            "comment": "all the members have at least one child with the same name"
+          }
+        ]
+      }
+    }
+  }
+}

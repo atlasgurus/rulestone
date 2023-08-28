@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "created": "2023-03-29",
+    "priority": 10,
+    "rule_id": "rule-0"
+  },
+  "condition": {
+    "expression": "name == \"Frank\" && age == 20 && child.nested[child.nested[2].index].age == 10"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "created": "2023-03-29"
+  },
+  "actions": {
+    "report": {
+      "comment": "each action is determined by its tag and will have action specific arguments",
+      "format": "json"
+    }
+  },
+  "for_all": {
+    "path": "members",
+    "comment": "for all the members",
+    "element": "member",
+    "condition": {
+      "operation": "AND",
+      "args": [
+        {
+          "expression": "member.name == \"Alice\" && member.age > 20"
+        }
+      ]
+    }
+  }
+}

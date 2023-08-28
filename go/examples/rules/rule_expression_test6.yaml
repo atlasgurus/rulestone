@@ -1,0 +1,6 @@
+metadata:
+  created: 2023-03-29
+  priority: 10
+  test purpose: check that the inequality on the missing value age evaluates to true, also test isEqualToAny()
+condition:
+  expression: regexpMatch("^\\d{4}/\\d{2}/\\d{2}$", child.dob) && regexpMatch("^\\d{4}/\\d{2}/\\d{2}$", child.dob) && isEqualToAnyWithDate(child.name, child.dob, "Tom", "1967-03-29", "1968-12-28") && isEqualToAny(child.name, "Tom", "Fred") && child.age != 5

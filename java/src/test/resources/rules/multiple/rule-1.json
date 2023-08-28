@@ -1,0 +1,10 @@
+{
+  "metadata": {
+    "created": "2023-03-29",
+    "priority": 10,
+    "rule_id": "rule-1"
+  },
+  "condition": {
+    "expression": "name == \"Frank\" && age == 20"
+  }
+}

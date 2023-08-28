@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "created": "2023-03-29"
+  },
+  "actions": {
+    "report": {
+      "comment": "each action is determined by its tag and will have action specific arguments",
+      "format": "json"
+    }
+  },
+  "condition": {
+    "operation": "AND",
+    "args": [
+      {
+        "expression": "name == \"Alice\" && age > 20 && child.age == 2"
+      },
+      {
+        "for_all": {
+          "path": "members",
+          "comment": "for all the members",
+          "element": "member",
+          "for_some": {
+            "path": "member.children",
+            "comment": "there is a child",
+            "element": "child",
+            "condition": {
+              "expression": "name == \"Alice\" && age > 20 && child.age == 2"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -14,6 +14,8 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,6 +34,7 @@ type GeneralRuleRecord struct {
 type RuleEngineRepo struct {
 	Rules []*GeneralRuleRecord
 	ctx   *types.AppContext
+	api   *api.RuleApi
 }
 
 // MapScalar Implement MapperConfig interface
@@ -44,7 +47,7 @@ func (repo *RuleEngineRepo) GetAppCtx() *types.AppContext {
 }
 
 func NewRuleEngineRepo(ctx *types.AppContext) *RuleEngineRepo {
-	return &RuleEngineRepo{ctx: ctx}
+	return &RuleEngineRepo{ctx: ctx, api: api.NewRuleApi(ctx)}
 }
 
 type CatEvaluatorKind int8
@@ -1618,11 +1621,44 @@ func (repo *CompareCondRepo) evalOperandAddress(operand condition.Operand, scope
 	}
 }
 
-// Register TODO: need to add filter name or other metadata here or elsewhere
 func (repo *RuleEngineRepo) Register(f *api.RuleDefinition) uint {
 	result := uint(len(repo.Rules))
 	repo.Rules = append(repo.Rules, &GeneralRuleRecord{f, result})
 	return result
+}
+
+func (repo *RuleEngineRepo) RegisterRule(rule *api.Rule) (uint, error) {
+	rd, err := repo.api.RuleToRuleDefinition(rule)
+	if err != nil {
+		return math.MaxUint, err
+	}
+	return repo.Register(rd), nil
+}
+
+func (repo *RuleEngineRepo) RegisterRuleFromString(rule string, format string) (uint, error) {
+	r := strings.NewReader(rule)
+	rd, err := repo.api.ReadRule(r, format)
+	if err != nil {
+		return math.MaxUint, err
+	}
+	return repo.RegisterRule(rd)
+}
+
+func (repo *RuleEngineRepo) RegisterRuleFromFile(path string) (uint, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return math.MaxUint, err
+	}
+	defer f.Close()
+
+	fileType := filepath.Ext(path)
+	fileType = fileType[1:] // Remove the dot from the extension
+
+	rule, err := repo.api.ReadRule(f, fileType)
+	if err != nil {
+		return math.MaxUint, err
+	}
+	return repo.RegisterRule(rule)
 }
 
 func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, error) {

@@ -4,9 +4,6 @@
     "priority": 10
   },
   "condition": {
-    "operation": "NOT",
-    "arg": {
-      "expression": "name == \"Frank\" && age != 20 && child.nested[1].age + 1== 11"
-    }
+      "expression": "!(name == \"Frank\" && age != 20 && child.nested[1].age + 1== 11)"
   }
 }

@@ -163,8 +163,8 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 	return f.catEngine.MatchEvent(eventCategories)
 }
 
-func (f *RuleEngine) GetRuleDefinition(ruleId int) *api.RuleDefinition {
-	if ruleId >= 0 && ruleId < len(f.repo.Rules) {
+func (f *RuleEngine) GetRuleDefinition(ruleId uint) *api.RuleDefinition {
+	if ruleId >= 0 && int(ruleId) >= 0 && int(ruleId) < len(f.repo.Rules) {
 		return f.repo.Rules[ruleId].definition
 	} else {
 		return nil

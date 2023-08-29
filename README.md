@@ -45,20 +45,15 @@ The following Go example shows how to load a rule from file and match an object 
     )
     
     func Match() {
+        // Create new application context to keep track of errors and other info
         ctx := types.NewAppContext()
-        fapi := api.NewRuleApi(ctx)
         
         repo := engine.NewRuleEngineRepo(ctx)
-        rule1, err := utils.ReadRuleFromFile("rule.json", ctx)
+        _, err := repo.RegisterRuleFromFile("rule.json")
         if err != nil {
             return
         }
         
-        fd1, err := fapi.RuleToRuleDefinition(rule1)
-        if err != nil {
-            return
-        }
-        repo.Register(fd1)
         ruleEngine, err := engine.NewRuleEngine(repo)
         if err != nil {
             return
@@ -72,10 +67,15 @@ The following Go example shows how to load a rule from file and match an object 
         matches := ruleEngine.MatchEvent(event)
 
         for _, ruleId := range matches {
-            ruleDefinition := ruleEngine.GetRuleDefinition(int(ruleId))
+			// Optionally get matching rules metadata
+            ruleDefinition := ruleEngine.GetRuleDefinition(ruleId)
             if ruleIdStr, ok := ruleDefinition.Metadata["rule_id"].(string); ok {
                 fmt.Println("Rule matched: ", ruleIdStr)
             }
+        }
+        // Report all the errors if any
+        if ctx.NumErrors() > 0 {
+            ctx.PrintErrors()
         }
     }
     

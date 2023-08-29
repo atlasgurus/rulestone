@@ -6,6 +6,7 @@ import (
 	c "github.com/rulestone/condition"
 	"github.com/rulestone/engine"
 	"github.com/rulestone/types"
+	"math"
 	"testing"
 )
 
@@ -59,7 +60,7 @@ func TestGeneralFilter0(t *testing.T) {
 	}
 
 	ruleDefNonExisting1 := genFilter.GetRuleDefinition(1001)
-	ruleDefNonExisting2 := genFilter.GetRuleDefinition(-1)
+	ruleDefNonExisting2 := genFilter.GetRuleDefinition(math.MaxUint)
 
 	if ruleDefNonExisting1 != nil || ruleDefNonExisting2 != nil {
 		t.Fatalf("failed: rule engine must return nil for non-existing rule id")

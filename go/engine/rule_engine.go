@@ -85,6 +85,7 @@ type CompareCondRepo struct {
 	AttributeToCompareCondRecord map[string]*hashset.Set[*EvalCategoryRec]
 	CondToCompareCondRecord      *hashmap.Map[condition.Condition, *EvalCategoryRec]
 	CondToCategoryMap            *hashmap.Map[condition.Condition, *hashmap.Map[condition.Operand, []condition.Operand]]
+	CondToStringMatcher          *hashmap.Map[condition.Condition, *StringMatcher]
 	EvalCategoryRecs             []*EvalCategoryRec
 	RuleRepo                     condition.RuleRepo
 	ObjectAttributeMapper        *objectmap.ObjectAttributeMapper
@@ -295,9 +296,52 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 			if xKind == condition.ErrorOperandKind {
 				return X
 			}
-			cat, k := categoryMap.Get(X)
+			catList, k := categoryMap.Get(X)
 			if k {
-				return condition.NewListOperand(cat)
+				return condition.NewListOperand(catList)
+			} else {
+				return condition.IntConst0
+			}
+		}, varOperand)
+}
+
+func (repo *CompareCondRepo) processEvalForContains(
+	varOperand condition.Operand, stringsToMatch []string, scope *ForEachScope) condition.Operand {
+	varOperand = repo.evalOperandAccess(repo.evalOperandAddress(varOperand, scope), scope)
+	if varOperand.GetKind() == condition.ErrorOperandKind {
+		return varOperand
+	}
+
+	// Create a dummy compare operation ignoring the stringsToMatch value and look it up
+	dummyCondition := condition.NewCompareCond(condition.CompareContainsOp, varOperand, condition.NewIntOperand(0))
+	stringMatcher, seenCond := repo.CondToStringMatcher.Get(dummyCondition)
+	if !seenCond {
+		stringMatcher = NewStringMatcher()
+		repo.CondToStringMatcher.Put(dummyCondition, stringMatcher)
+	}
+
+	// Create an entry in the stringMatcher for each of the stringsToMatch
+	for _, constOperand := range stringsToMatch {
+		stringMatcher.AddPattern(constOperand, condition.NewIntOperand(int64(scope.Evaluator.GetCategory())))
+	}
+
+	if seenCond {
+		// We have seen a condition identical to this one except for the const compare equal operand.
+		// Unregister the duplicate address to evaluator mappings that may have been created.
+		repo.unregisterCatEvaluator(scope.Evaluator)
+		return nil
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			X := varOperand.Evaluate(event, frames).Convert(condition.StringOperandKind)
+			xKind := X.GetKind()
+			if xKind == condition.ErrorOperandKind {
+				return X
+			}
+			catList := stringMatcher.Match(string(X.(condition.StringOperand)))
+			if len(catList) > 0 {
+				return condition.NewListOperand(catList)
 			} else {
 				return condition.IntConst0
 			}
@@ -765,6 +809,8 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 			return negateIfTrue(repo.processBoolFunc(funcIsEqualToAnyWithDate, n, scope), negate)
 		case "isEqualToAny":
 			return negateIfTrue(repo.processIsEqualToAny(n, scope), negate)
+		case "containsAny":
+			return negateIfTrue(repo.processContains(n, scope), negate)
 		default:
 			return condition.NewErrorCondition(fmt.Errorf("unsupported function: %s", funcName))
 		}
@@ -871,6 +917,51 @@ func (repo *CompareCondRepo) processIsEqualToAny(n *ast.CallExpr, scope *ForEach
 	}
 
 	eval := repo.processEvalForIsInConstantList(argOperands[0], argOperands[1:], scope)
+
+	if eval != nil && eval.GetKind() == condition.ErrorOperandKind {
+		return condition.NewErrorCondition(eval.(condition.ErrorOperand))
+	}
+	evalCatRec.Eval = eval
+
+	return condition.NewCategoryCond(evalCatRec.GetCategory())
+}
+
+func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
+	evalCatRec := repo.NewEvalCategoryRec(nil)
+	if scope.Evaluator != nil {
+		panic("Should not happen")
+	}
+	// Set evaluator record so that we can register nested attribute addresses access against it.
+	scope.Evaluator = evalCatRec
+	defer scope.ResetEvaluator()
+
+	if len(n.Args) < 2 {
+		return condition.NewErrorCondition(fmt.Errorf("wrong number of arguments for containsAny() function"))
+	}
+
+	argOperands := types.MapSlice(n.Args,
+		func(o ast.Expr) condition.Operand { return repo.evalAstNode(o, scope) })
+	firstErrorOperand := types.FindFirstInSlice(
+		argOperands, func(o condition.Operand) bool { return o.GetKind() == condition.ErrorOperandKind })
+	if firstErrorOperand != nil {
+		return condition.NewErrorCondition((*firstErrorOperand).(*condition.ErrorOperand).Err)
+	}
+
+	constOperands := types.FilterSlice(argOperands[1:], func(o condition.Operand) bool { return o.IsConst() })
+	if len(constOperands) != len(argOperands)-1 {
+		// Not all operands in the match list are constants
+		return condition.NewErrorCondition(fmt.Errorf("containsAny() only supports constant string match list"))
+	}
+	constStringOperands := types.MapSlice(constOperands,
+		func(o condition.Operand) string {
+			return string(o.Convert(condition.StringOperandKind).(condition.StringOperand))
+		})
+	if len(constStringOperands) != len(constOperands) {
+		// Not all operands in the match list are strings
+		return condition.NewErrorCondition(fmt.Errorf("containsAny() only supports constant string match list"))
+	}
+
+	eval := repo.processEvalForContains(argOperands[0], constStringOperands, scope)
 
 	if eval != nil && eval.GetKind() == condition.ErrorOperandKind {
 		return condition.NewErrorCondition(eval.(condition.ErrorOperand))
@@ -1538,6 +1629,7 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 	result := CompareCondRepo{
 		CondToCompareCondRecord:      types.NewHashMap[condition.Condition, *EvalCategoryRec](),
 		CondToCategoryMap:            types.NewHashMap[condition.Condition, *hashmap.Map[condition.Operand, []condition.Operand]](),
+		CondToStringMatcher:          types.NewHashMap[condition.Condition, *StringMatcher](),
 		AttributeToCompareCondRecord: make(map[string]*hashset.Set[*EvalCategoryRec]),
 		ObjectAttributeMapper:        objectmap.NewObjectAttributeMapper(repo),
 		CondFactory:                  condition.NewFactory(),
@@ -1558,6 +1650,9 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 		}
 		result.RuleRepo.Register(condition.NewRule(condition.RuleIdType(id), cond))
 	}
+
+	// Build the string matchers
+	result.CondToStringMatcher.Each(func(key condition.Condition, value *StringMatcher) {value.Build()})
 
 	return &result, nil
 }

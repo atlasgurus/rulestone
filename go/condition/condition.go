@@ -230,6 +230,7 @@ const (
 	CompareGreaterOrEqualOp           = 4
 	CompareLessOp                     = 5
 	CompareLessOrEqualOp              = 6
+	CompareContainsOp                 = 7
 	CompareInvalidOp                  = 99
 )
 

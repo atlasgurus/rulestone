@@ -2,6 +2,7 @@
   "name": "Frank",
   "gender": "male",
   "dob": "1968/11/28",
+  "message": "We hold these truths to be self-evident, that all men are created equal, that they are endowed by their Creator with certain unalienable Rights, that among these are Life, Liberty and the pursuit of Happiness",
   "child": {
     "dob": "1968/12/27",
     "name": "Tom"

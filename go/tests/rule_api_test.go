@@ -470,7 +470,7 @@ func TestFilterApiExpression6(t *testing.T) {
 		if len(matches) != 1 {
 			t.Fatalf("failed number of matches %d != 1", len(matches))
 		}
-		if genFilter.Metrics.NumCatEvals-numCatEvals != 3 {
+		if genFilter.Metrics.NumCatEvals-numCatEvals != 4 {
 			t.Fatalf("failed common category elimination optimization")
 		}
 	}

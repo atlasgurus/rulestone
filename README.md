@@ -140,7 +140,7 @@ need to use `date()` function. The function can parse date string in different f
 ```
 
 ## Contributing
-We love contributions! If you have any suggestions, bug reports, or feature requests, please open an issue on our [GitHub page]().
+We love contributions! If you have any suggestions, bug reports, or feature requests, please open an issue in our [tracker](https://github.com/atlasgurus/rulestone/issues).
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.

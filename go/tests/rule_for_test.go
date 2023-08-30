@@ -228,7 +228,7 @@ func TestFilterFor2(t *testing.T) {
 	fapi := api.NewRuleApi(ctx)
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_2.json", ctx)
+	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_2.yaml", ctx)
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -263,7 +263,7 @@ func TestFilterFor3(t *testing.T) {
 	fapi := api.NewRuleApi(ctx)
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_3.json", ctx)
+	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_3.yaml", ctx)
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return

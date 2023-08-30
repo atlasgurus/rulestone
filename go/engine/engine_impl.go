@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/rulestone/api"
 	"github.com/rulestone/condition"
@@ -11,6 +12,7 @@ import (
 	"github.com/zyedidia/generic/hashset"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"math"
 	"regexp"
@@ -27,7 +29,6 @@ type GeneralRuleRecord struct {
 	definition *api.RuleDefinition
 	id         uint
 }
-
 
 // MapScalar Implement MapperConfig interface
 func (repo *RuleEngineRepo) MapScalar(v interface{}) interface{} {
@@ -756,6 +757,7 @@ func (repo *CompareCondRepo) genEvalForSomeCondition(
 				}
 				// Return true unless at least one is false
 				types.PutIntSlice(currentAddress)
+
 				return result
 			}, eval)
 	}
@@ -806,6 +808,10 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 			return negateIfTrue(repo.processIsEqualToAny(n, scope), negate)
 		case "containsAny":
 			return negateIfTrue(repo.processContains(n, scope), negate)
+		case "forAll":
+			return negateIfTrue(repo.processForAllFunc(n, scope), negate)
+		case "forSome":
+			return negateIfTrue(repo.processForSomeFunc(n, scope), negate)
 		default:
 			return condition.NewErrorCondition(fmt.Errorf("unsupported function: %s", funcName))
 		}
@@ -920,6 +926,123 @@ func (repo *CompareCondRepo) processIsEqualToAny(n *ast.CallExpr, scope *ForEach
 
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
+
+func (repo *CompareCondRepo) processForEachFunc(n *ast.CallExpr, kind string, scope *ForEachScope) condition.Condition {
+	pathOperand, elementOperand, exprCond, err := repo.setupForEachOperands(n, scope)
+	if err != nil {
+		return condition.NewErrorCondition(err)
+	}
+
+	switch kind {
+	case "all":
+		return repo.ConvertToCategoryCondition(
+			condition.NewForAllCond(
+				string(elementOperand.(condition.StringOperand)),
+				string(pathOperand.(condition.StringOperand)),
+				exprCond),
+			scope)
+	case "some":
+		return repo.ConvertToCategoryCondition(
+			condition.NewForSomeCond(
+				string(elementOperand.(condition.StringOperand)),
+				string(pathOperand.(condition.StringOperand)),
+				exprCond),
+			scope)
+
+	default:
+		panic(fmt.Sprintf("Unknown kind %s", kind))
+	}
+}
+
+func (repo *CompareCondRepo) setupForEachOperands(n *ast.CallExpr, scope *ForEachScope) (
+	condition.Operand, condition.Operand, condition.Condition, error) {
+	if len(n.Args) != 3 {
+		return nil, nil, nil, fmt.Errorf("wrong number of arguments for forAll() function")
+	}
+
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() == condition.ErrorOperandKind {
+		return nil, nil, nil, pathOperand.(condition.ErrorOperand).Err
+	}
+
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return nil, nil, nil, fmt.Errorf("forAll() only supports string path")
+	}
+
+	elementOperand := repo.evalAstNode(n.Args[1], scope)
+	if elementOperand.GetKind() == condition.ErrorOperandKind {
+		return nil, nil, nil, elementOperand.(condition.ErrorOperand).Err
+	}
+
+	if elementOperand.GetKind() != condition.StringOperandKind {
+		return nil, nil, nil, fmt.Errorf("forAll() only supports string element operand")
+	}
+
+	// We can't process the expression here because we have not evaluated the parent scope yet, which is defined by
+	// the path and element operands. We will process the expression in the child scope.
+	// First convert the ast expression back to string.
+	// Then construct a ForAllCond with the string expression and pass it back to ConvertToCategoryCondition.
+	var buf bytes.Buffer
+	err := printer.Fprint(&buf, token.NewFileSet(), n.Args[2])
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	exprCond := condition.NewExprCondition(buf.String())
+	return pathOperand, elementOperand, exprCond, nil
+}
+
+func (repo *CompareCondRepo) processForAllFunc(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
+	pathOperand, elementOperand, exprCond, err := repo.setupForEachOperands(n, scope)
+	if err != nil {
+		return condition.NewErrorCondition(err)
+	}
+	return repo.ConvertToCategoryCondition(
+		condition.NewForAllCond(
+			string(elementOperand.(condition.StringOperand)),
+			string(pathOperand.(condition.StringOperand)),
+			exprCond),
+		scope)
+}
+
+func (repo *CompareCondRepo) processForSomeFunc(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
+	pathOperand, elementOperand, exprCond, err := repo.setupForEachOperands(n, scope)
+	if err != nil {
+		return condition.NewErrorCondition(err)
+	}
+	return repo.ConvertToCategoryCondition(
+		condition.NewForSomeCond(
+			string(elementOperand.(condition.StringOperand)),
+			string(pathOperand.(condition.StringOperand)),
+			exprCond),
+		scope)
+}
+
+func (repo *CompareCondRepo) funcForSome(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	pathOperand, elementOperand, exprCond, err := repo.setupForEachOperands(n, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	return repo.genEvalForSomeCondition(
+		condition.NewForSomeCond(
+			string(elementOperand.(condition.StringOperand)),
+			string(pathOperand.(condition.StringOperand)),
+			exprCond).(*condition.ForSomeCond),
+		scope)
+}
+
+func (repo *CompareCondRepo) funcForAll(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	pathOperand, elementOperand, exprCond, err := repo.setupForEachOperands(n, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	return repo.genEvalForAllCondition(
+		condition.NewForAllCond(
+			string(elementOperand.(condition.StringOperand)),
+			string(pathOperand.(condition.StringOperand)),
+			exprCond).(*condition.ForAllCond),
+		scope)
+}
+
 
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
@@ -1129,6 +1252,10 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return funcIsEqualToAnyWithDate(repo, n, scope)
 		case "isEqualToAny":
 			return repo.funcIsEqualToAny(n, scope)
+		case "forAll":
+			return repo.funcForAll(n, scope)
+		case "forSome":
+			return repo.funcForSome(n, scope)
 		case "sqrt":
 			argOperand := repo.evalAstNode(n.Args[0], scope)
 			if argOperand.GetKind() == condition.ErrorOperandKind {

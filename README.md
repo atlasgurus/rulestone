@@ -1,30 +1,22 @@
 # Rulestone #
 
-Lightweight and fast [rule engine](https://en.wikipedia.org/wiki/Business_rules_engine) written in Go, with Go and Java API available.
+![Go Tests](https://github.com/atlasgurus/rulestone/actions/workflows/build.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/atlasgurus/rulestone/blob/main/LICENSE)
 
-With Rulestone you can define thousands of rules and then process tens of thousands events/objects per second getting the matching rules
-for each object.
+Lightweight and fast [rule engine](https://en.wikipedia.org/wiki/Business_rules_engine) written in Go, with API for
+other languages:
+* Go (this!)
+* [Java](https://github.com/atlasgurus/rulestone-java)
+
+With Rulestone you can define thousands of rules and then process tens of thousands events/objects per second getting
+the matching rules for each object.
 
 # Installation
-
-## Go
 
 Install the package:
 
 ```bash
 go get github.com/atlasgurus/rulestone
-```
-
-## Java
-
-Add Maven dependency:
-
-```xml
-<dependency>
-    <groupId>com.atlasgurus</groupId>
-    <artifactId>rulestone</artifactId>
-    <version>0.1.0</version>
-</dependency>
 ```
 
 # Usage
@@ -35,30 +27,30 @@ The following Go example shows how to load a rule from file and match an object 
 
 ```go
     package main
-    
+
     import (
         "fmt"
-        "github.com/rulestone/Utils"
-        "github.com/rulestone/api"
-        "github.com/rulestone/engine"
-        "github.com/rulestone/types"
+        "github.com/atlasgurus/rulestone/utils"
+        "github.com/atlasgurus/rulestone/api"
+        "github.com/atlasgurus/rulestone/engine"
+        "github.com/atlasgurus/rulestone/types"
     )
-    
+
     func Match() {
         // Create new application context to keep track of errors and other info
         ctx := types.NewAppContext()
-        
+
         repo := engine.NewRuleEngineRepo(ctx)
         _, err := repo.RegisterRuleFromFile("rule.json")
         if err != nil {
             return
         }
-        
+
         ruleEngine, err := engine.NewRuleEngine(repo)
         if err != nil {
             return
         }
-        
+
         event, err := utils.ReadEvent("object.json")
         if err != nil {
             return
@@ -78,38 +70,14 @@ The following Go example shows how to load a rule from file and match an object 
             ctx.PrintErrors()
         }
     }
-    
+
     func main() {
         Match()
     }
 ```
 
-This example assumes rule contains the metadata field called `rule_id`.
-See for more Go usage examples in `go/tests/rule_api_test.go`.
-
-## Java
-
-The following Java example shows how to load a rule from file and match an object against this rule:
-
-```java
-import com.atlasgurus.rulestone.RuleMetadata;
-import com.atlasgurus.rulestone.Rulestone;
-
-public class RulestoneMatch {
-    public static void main(String[] args) {
-        String json = "{\"field1\": \"value1\"}";
-        Rulestone rulestoneEngine = Rulestone.getInstance("/rules_directory");
-        int[] matches = rulestoneEngine.match(json);
-        for (int ruleId: matches) {
-            RuleMetadata metadata = rulestoneEngine.getRuleMetadata(ruleId);
-            System.out.println("Rule matched: " + metadata.getValue("rule_id"));
-        }
-    }
-}
-```
-
-This example assumes rule contains the metadata field called `rule_id`.
-
+The example assumes rule contains the metadata field called `rule_id`.
+See for more Go usage examples in `tests/rule_api_test.go`.
 
 ## Rules
 
@@ -129,10 +97,10 @@ This example assumes rule contains the metadata field called `rule_id`.
 ```
 
 The rule match if the JSON object has a `name` field with value `Frank` and an `age` field with value `20`.
-The metadata section may store any information linked to the rule, including the rule ID. 
+The metadata section may store any information linked to the rule, including the rule ID.
 The condition section contains the expression that will be evaluated against the JSON object.s
 
-See `go/examples/rules` for more rules examples.
+See `examples/rules` for more rules examples.
 
 ### Operators and functions
 
@@ -172,15 +140,7 @@ need to use `date()` function. The function can parse date string in different f
 ```
 
 ## Contributing
-We love contributions! If you have any suggestions, bug reports, or feature requests, please open an issue on our [GitHub page]().
+We love contributions! If you have any suggestions, bug reports, or feature requests, please open an issue in our [tracker](https://github.com/atlasgurus/rulestone/issues).
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-
-
-
-
-
-
-

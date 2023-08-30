@@ -1,5 +1,2 @@
 .DS_Store
 .idea
-java/target
-java/src/main/resources/librulestone_x86_64.dylib
-java/src/main/resources/librulestone_amd64.so

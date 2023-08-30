@@ -1,6 +1,7 @@
 # Rulestone #
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Go Tests](https://github.com/atlasgurus/rulestone/actions/workflows/build.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/atlasgurus/rulestone/blob/main/LICENSE)
 
 Lightweight and fast [rule engine](https://en.wikipedia.org/wiki/Business_rules_engine) written in Go, with API for
 other languages:

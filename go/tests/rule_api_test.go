@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"github.com/rulestone/api"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	"github.com/atlasgurus/rulestone/types"
 	"strings"
 	"testing"
 )

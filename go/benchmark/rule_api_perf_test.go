@@ -1,10 +1,10 @@
 package benchmark
 
 import (
-	"github.com/rulestone/Utils"
-	"github.com/rulestone/api"
-	"github.com/rulestone/engine"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	"github.com/atlasgurus/rulestone/engine"
+	"github.com/atlasgurus/rulestone/types"
+	"github.com/atlasgurus/rulestone/utils"
 	"io/ioutil"
 	"path"
 	"testing"

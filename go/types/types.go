@@ -3,7 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
-	"github.com/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/immutable"
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
 	"sync"

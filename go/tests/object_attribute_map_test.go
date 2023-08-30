@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"github.com/rulestone/Utils"
-	"github.com/rulestone/objectmap"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/objectmap"
+	"github.com/atlasgurus/rulestone/types"
+	"github.com/atlasgurus/rulestone/utils"
 	"testing"
 )
 

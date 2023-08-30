@@ -3,8 +3,8 @@ package utils
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/rulestone/api"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	"github.com/atlasgurus/rulestone/types"
 	"io"
 	"os"
 	"path/filepath"

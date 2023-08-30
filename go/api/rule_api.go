@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	c "github.com/rulestone/condition"
-	"github.com/rulestone/types"
+	c "github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/types"
 	"gopkg.in/yaml.v3"
 	"io"
 	"strings"

@@ -1,7 +1,7 @@
 package condition
 
 import (
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/types"
 )
 
 type RuleIdType uint32

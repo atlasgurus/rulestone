@@ -3,11 +3,11 @@ package engine
 import (
 	"bytes"
 	"fmt"
-	"github.com/rulestone/api"
-	"github.com/rulestone/condition"
-	"github.com/rulestone/immutable"
-	"github.com/rulestone/objectmap"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	"github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/objectmap"
+	"github.com/atlasgurus/rulestone/types"
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
 	"go/ast"
@@ -1042,7 +1042,6 @@ func (repo *CompareCondRepo) funcForAll(n *ast.CallExpr, scope *ForEachScope) co
 			exprCond).(*condition.ForAllCond),
 		scope)
 }
-
 
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)

@@ -2,7 +2,7 @@ package objectmap
 
 import (
 	"fmt"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/types"
 	"reflect"
 	"strconv"
 	"strings"

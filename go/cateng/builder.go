@@ -2,9 +2,9 @@ package cateng
 
 import (
 	"fmt"
-	"github.com/rulestone/condition"
-	"github.com/rulestone/immutable"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/types"
 	"github.com/zyedidia/generic/hashmap"
 	"sort"
 )

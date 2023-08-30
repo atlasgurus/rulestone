@@ -1,11 +1,11 @@
 package engine
 
 import (
-	"github.com/rulestone/api"
-	"github.com/rulestone/cateng"
-	"github.com/rulestone/condition"
-	"github.com/rulestone/objectmap"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	"github.com/atlasgurus/rulestone/cateng"
+	"github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/objectmap"
+	"github.com/atlasgurus/rulestone/types"
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
 	"math"
@@ -15,7 +15,7 @@ import (
 )
 
 type RuleEngineRepo struct {
-	Rules []*GeneralRuleRecord
+	Rules   []*GeneralRuleRecord
 	ctx     *types.AppContext
 	ruleApi *api.RuleApi
 }
@@ -87,7 +87,7 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 	}
 
 	// Build the string matchers
-	result.CondToStringMatcher.Each(func(key condition.Condition, value *StringMatcher) {value.Build()})
+	result.CondToStringMatcher.Each(func(key condition.Condition, value *StringMatcher) { value.Build() })
 
 	return &result, nil
 }

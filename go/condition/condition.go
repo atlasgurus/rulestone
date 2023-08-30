@@ -3,9 +3,9 @@ package condition
 import (
 	"fmt"
 	"github.com/araddon/dateparse"
-	"github.com/rulestone/immutable"
-	"github.com/rulestone/objectmap"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/objectmap"
+	"github.com/atlasgurus/rulestone/types"
 	"reflect"
 	"strconv"
 	"time"

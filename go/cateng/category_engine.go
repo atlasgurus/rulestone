@@ -2,8 +2,8 @@ package cateng
 
 import (
 	"fmt"
-	"github.com/rulestone/condition"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/types"
 )
 
 type Metrics struct {

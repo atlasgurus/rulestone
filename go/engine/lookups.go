@@ -1,8 +1,8 @@
 package engine
 
 import (
+	"github.com/atlasgurus/rulestone/condition"
 	"github.com/cloudflare/ahocorasick"
-	"github.com/rulestone/condition"
 )
 
 func contains(text string, patterns []string) []string {

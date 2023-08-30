@@ -2,10 +2,10 @@ package benchmark
 
 import (
 	"fmt"
-	"github.com/rulestone/cateng"
-	"github.com/rulestone/condition"
-	is "github.com/rulestone/immutable"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/cateng"
+	"github.com/atlasgurus/rulestone/condition"
+	is "github.com/atlasgurus/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/types"
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
 	"math/rand"

@@ -1,8 +1,8 @@
 package tests_test
 
 import (
-	"github.com/rulestone/immutable"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/immutable"
+	"github.com/atlasgurus/rulestone/types"
 	"testing"
 )
 

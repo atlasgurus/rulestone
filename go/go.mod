@@ -1,4 +1,4 @@
-module github.com/rulestone
+module github.com/atlasgurus/rulestone
 
 go 1.18
 

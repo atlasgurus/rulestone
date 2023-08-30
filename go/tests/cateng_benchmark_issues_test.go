@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"github.com/rulestone/cateng"
-	c "github.com/rulestone/condition"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/cateng"
+	c "github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/types"
 	"testing"
 )
 

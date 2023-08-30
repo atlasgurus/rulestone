@@ -2,7 +2,7 @@ package tests_test
 
 import (
 	"fmt"
-	c "github.com/rulestone/condition"
+	c "github.com/atlasgurus/rulestone/condition"
 	"testing"
 )
 

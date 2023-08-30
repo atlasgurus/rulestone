@@ -1,11 +1,11 @@
 package tests
 
 import (
-	"github.com/rulestone/Utils"
-	"github.com/rulestone/api"
-	c "github.com/rulestone/condition"
-	"github.com/rulestone/engine"
-	"github.com/rulestone/types"
+	"github.com/atlasgurus/rulestone/api"
+	c "github.com/atlasgurus/rulestone/condition"
+	"github.com/atlasgurus/rulestone/engine"
+	"github.com/atlasgurus/rulestone/types"
+	"github.com/atlasgurus/rulestone/utils"
 	"math"
 	"testing"
 )

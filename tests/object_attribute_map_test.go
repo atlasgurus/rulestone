@@ -56,7 +56,7 @@ func TestObjectAttributeMap_01(t *testing.T) {
 		t.Fatalf("failed AttributePathToAddress")
 	}
 
-	if f, err := utils.ReadEvent("../examples/data/data1.json"); err != nil {
+	if f, err := utils.ReadEvent("../examples/data/data_general_filter_test1.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		objectMap := mapper.MapObject(f, func(addr []int) {})
@@ -125,7 +125,7 @@ func TestObjectAttributeMap_01(t *testing.T) {
 		}
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data2.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_object_attr_map_test0.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		objectMap := mapper.MapObject(event, func(addr []int) {})
@@ -148,7 +148,7 @@ func TestObjectAttributeMap_01(t *testing.T) {
 		}
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data3.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_object_attr_map_test1.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		objectMap := mapper.MapObject(event, func(addr []int) {})

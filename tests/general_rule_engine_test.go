@@ -34,7 +34,7 @@ func TestGeneralFilter0(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
-	if event, err := utils.ReadEvent("../examples/data/data0.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_general_filter_test0.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -43,7 +43,7 @@ func TestGeneralFilter0(t *testing.T) {
 		}
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data1.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_general_filter_test1.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)

@@ -4,15 +4,12 @@ import (
 	"github.com/atlasgurus/rulestone/api"
 	c "github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/engine"
-	"github.com/atlasgurus/rulestone/types"
 	"github.com/atlasgurus/rulestone/utils"
 	"math"
 	"testing"
 )
 
 func TestGeneralFilter0(t *testing.T) {
-	ctx := types.NewAppContext()
-
 	cond1 :=
 		c.NewAndCond(
 			c.NewCompareCond(c.CompareEqualOp, c.NewAttributeOperand("child.age"), c.NewFloatOperand(10)),
@@ -25,7 +22,7 @@ func TestGeneralFilter0(t *testing.T) {
 			c.NewCompareCond(c.CompareEqualOp, c.NewAttributeOperand("gender"), c.NewStringOperand("female")),
 			c.NewCompareCond(c.CompareEqualOp, c.NewAttributeOperand("children[1].name"), c.NewStringOperand("David")),
 		)
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	ruleDef1 := &api.RuleDefinition{Condition: cond1}
 	repo.Register(ruleDef1)
 	ruleDef2 := &api.RuleDefinition{Condition: cond2}
@@ -66,8 +63,8 @@ func TestGeneralFilter0(t *testing.T) {
 		t.Fatalf("failed: rule engine must return nil for non-existing rule id")
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }

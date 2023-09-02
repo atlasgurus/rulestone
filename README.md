@@ -32,17 +32,12 @@ The following Go example shows how to load a rule from file and match an object 
     import (
         "fmt"
         "github.com/atlasgurus/rulestone/utils"
-        "github.com/atlasgurus/rulestone/api"
         "github.com/atlasgurus/rulestone/engine"
-        "github.com/atlasgurus/rulestone/types"
     )
 
     func Match() {
-        // Create new application context to keep track of errors and other info
-        ctx := types.NewAppContext()
-
-        repo := engine.NewRuleEngineRepo(ctx)
-        _, err := repo.RegisterRuleFromFile("rule.yaml")
+        repo := engine.NewRuleEngineRepo()
+        _, err := repo.RegisterRuleFromFile("rule.json")
         if err != nil {
             return
         }
@@ -67,8 +62,8 @@ The following Go example shows how to load a rule from file and match an object 
             }
         }
         // Report all the errors if any
-        if ctx.NumErrors() > 0 {
-            ctx.PrintErrors()
+        if repo.GetAppCtx().NumErrors() > 0 {
+            repo.GetAppCtx().PrintErrors()
         }
     }
 

@@ -1001,7 +1001,6 @@ func (c *ForSomeCond) Equals(v immutable.SetElement) bool {
 }
 
 func (c *ForSomeCond) GetOperands() []Condition {
-	// TODO: does it make sense?
 	return []Condition{c.Cond}
 }
 
@@ -1011,6 +1010,8 @@ func (c *ForSomeCond) GetKind() CondKind {
 
 func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 	switch n := v.(type) {
+	case int:
+		return NewIntOperand(int64(n))
 	case int64:
 		return NewIntOperand(n)
 	case string:

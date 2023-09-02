@@ -3,8 +3,10 @@ package utils
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"github.com/atlasgurus/rulestone/api"
 	"github.com/atlasgurus/rulestone/types"
+	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,12 +34,27 @@ func ReadEvent(path string) (interface{}, error) {
 		return nil, err
 	} else {
 		defer f.Close()
-		dec := json.NewDecoder(f)
+		fileType := filepath.Ext(path)
+		fileType = fileType[1:] // Remove the dot from the extension
 		var result interface{}
-		if err := dec.Decode(&result); err != nil {
-			return nil, err
+		switch strings.ToLower(fileType) {
+		case "json":
+			decoder := json.NewDecoder(f)
+			if err := decoder.Decode(&result); err != nil {
+				return nil, fmt.Errorf("error parsing JSON:%s", err)
+			} else {
+				return result, nil
+			}
+		case "yaml", "yml":
+			decoder := yaml.NewDecoder(f)
+			if err := decoder.Decode(&result); err != nil {
+				return nil, fmt.Errorf("error parsing YAML:%s", err)
+			} else {
+				return result, nil
+			}
+		default:
+			return nil, fmt.Errorf("unsupported file type:%s", fileType)
 		}
-		return result, nil
 	}
 }
 

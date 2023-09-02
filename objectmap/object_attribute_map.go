@@ -442,7 +442,7 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 			}
 			attrCallback(newAddress)
 		}
-	case reflect.Int64, reflect.String, reflect.Float64, reflect.Bool:
+	case reflect.Int, reflect.Int64, reflect.String, reflect.Float64, reflect.Bool:
 		attrDictRec, ok := dictRec.dict[path]
 		if ok && attrDictRec.mapIndex != -1 {
 			newAddress := append(address, attrDictRec.mapIndex)

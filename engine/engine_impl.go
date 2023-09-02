@@ -39,7 +39,8 @@ func (repo *RuleEngineRepo) GetAppCtx() *types.AppContext {
 	return repo.ctx
 }
 
-func NewRuleEngineRepo(ctx *types.AppContext) *RuleEngineRepo {
+func NewRuleEngineRepo() *RuleEngineRepo {
+	ctx := types.NewAppContext()
 	return &RuleEngineRepo{ctx: ctx, ruleApi: api.NewRuleApi(ctx)}
 }
 

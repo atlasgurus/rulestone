@@ -42,7 +42,7 @@ The following Go example shows how to load a rule from file and match an object 
         ctx := types.NewAppContext()
 
         repo := engine.NewRuleEngineRepo(ctx)
-        _, err := repo.RegisterRuleFromFile("rule.json")
+        _, err := repo.RegisterRuleFromFile("rule.yaml")
         if err != nil {
             return
         }
@@ -84,22 +84,18 @@ See for more Go usage examples in `tests/rule_api_test.go`.
 
 ### Simple rule definition
 
-```json
-{
-  "metadata": {
-    "created": "2023-03-29",
-    "priority": 10,
-    "rule_id": "BUSINESS_RULE_1"
-  },
-  "condition": {
-    "expression": "name == \"Frank\" && age == 20"
-  }
-}
+```yaml
+metadata:
+  created: "2023-03-29"
+  priority: 10
+  rule_id: "BUSINESS_RULE_1"
+expression: name == "Frank" && age == 20
+
 ```
 
 The rule match if the JSON object has a `name` field with value `Frank` and an `age` field with value `20`.
 The metadata section may store any information linked to the rule, including the rule ID.
-The condition section contains the expression that will be evaluated against the JSON object.s
+The condition section contains the expression that will be evaluated against the JSON object.
 
 See `examples/rules` for more rules examples.
 
@@ -128,16 +124,11 @@ Rulestone expressions supports:
 Rulestone handles dates and comparison operators on them, but since JSON doesn't provide field type information,
 need to use `date()` function. The function can parse date string in different formats:
 
-```json
-{
-  "metadata": {
-    "created": "2023-03-29",
-    "priority": 10
-  },
-  "condition": {
-    "expression": "name == \"Frank\" && date(dob) < date(child.dob) && date(\"11/29/1968\") > date(dob) && date(dob) == date(\"11/28/1968\")"
-  }
-}
+```yaml
+metadata:
+  created: "2023-03-29"
+  priority: 10
+expression: 'name == "Frank" && date(dob) < date(child.dob) && date("11/29/1968") > date(dob) && date(dob) == date("11/28/1968")'
 ```
 
 ## Contributing

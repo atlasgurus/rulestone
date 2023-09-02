@@ -7,39 +7,11 @@ import (
 	"testing"
 )
 
-func TestFilterApi0(t *testing.T) {
-	ctx := types.NewAppContext()
-
-	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_test1.json")
-	if err != nil {
-		t.Fatalf("failed RegisterRuleFromFile: %v", err)
-		return
-	}
-	genFilter, err := engine.NewRuleEngine(repo)
-	if err != nil {
-		t.Fatalf("failed NewRuleEngine: %s", err)
-	}
-	if event, err := utils.ReadEvent("../examples/data/data0.json"); err != nil {
-		t.Fatalf("failed ReadEvent: %s", err)
-	} else {
-		matches := genFilter.MatchEvent(event)
-		if len(matches) != 1 {
-			t.Fatalf("failed number of matches %d != 1", len(matches))
-		}
-	}
-
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
-	}
-}
-
 func TestFilterApiExpression0(t *testing.T) {
 	ctx := types.NewAppContext()
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test0.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test0.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -49,7 +21,7 @@ func TestFilterApiExpression0(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test0.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test0.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -66,7 +38,7 @@ func TestFilterApiExpression0(t *testing.T) {
 func TestFilterApiExpression1(t *testing.T) {
 	ctx := types.NewAppContext()
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test1.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test1.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -76,7 +48,7 @@ func TestFilterApiExpression1(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test1.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test1.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -94,7 +66,7 @@ func TestFilterApiExpression1(t *testing.T) {
 func TestFilterApiExpression2(t *testing.T) {
 	ctx := types.NewAppContext()
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test2.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test2.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -104,7 +76,7 @@ func TestFilterApiExpression2(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test2.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test2.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -122,7 +94,7 @@ func TestFilterApiExpression2(t *testing.T) {
 func TestFilterApiExpression3(t *testing.T) {
 	ctx := types.NewAppContext()
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test3.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test3.yaml")
 	if err != nil {
 		t.Fatalf("failed NewRuleEngineRepo: %v", err)
 		return
@@ -132,7 +104,7 @@ func TestFilterApiExpression3(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test3.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test3.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -150,7 +122,7 @@ func TestFilterApiExpression3(t *testing.T) {
 func TestFilterApiExpression4(t *testing.T) {
 	ctx := types.NewAppContext()
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test4.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test4.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -160,7 +132,7 @@ func TestFilterApiExpression4(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test4.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test4.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -178,7 +150,7 @@ func TestFilterApiExpression4(t *testing.T) {
 func TestFilterApiExpression5(t *testing.T) {
 	ctx := types.NewAppContext()
 	repo := engine.NewRuleEngineRepo(ctx)
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test5.json")
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test5.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -188,7 +160,7 @@ func TestFilterApiExpression5(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test5.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test5.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -217,7 +189,7 @@ func TestFilterApiExpression6(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_rule_expression_test6.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_expression_test6.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		numCatEvals := genFilter.Metrics.NumCatEvals

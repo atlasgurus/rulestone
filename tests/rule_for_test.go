@@ -193,7 +193,7 @@ func TestFilterFor1(t *testing.T) {
 	fapi := api.NewRuleApi(ctx)
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_1.json", ctx)
+	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test1.yaml", ctx)
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -208,7 +208,7 @@ func TestFilterFor1(t *testing.T) {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_each_1.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_for_each_test1.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -228,7 +228,7 @@ func TestFilterFor2(t *testing.T) {
 	fapi := api.NewRuleApi(ctx)
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_2.yaml", ctx)
+	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test2.yaml", ctx)
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -243,7 +243,7 @@ func TestFilterFor2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed RuleToRuleDefinition: %s", err)
 	}
-	if event, err := utils.ReadEvent("../examples/data/data_for_each_2.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_for_each_test2.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -263,7 +263,7 @@ func TestFilterFor3(t *testing.T) {
 	fapi := api.NewRuleApi(ctx)
 
 	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_3.yaml", ctx)
+	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test3.yaml", ctx)
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
@@ -278,7 +278,7 @@ func TestFilterFor3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
-	if event, err := utils.ReadEvent("../examples/data/data_for_each_3.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_for_each_test3.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)

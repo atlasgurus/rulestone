@@ -43,7 +43,7 @@ func TestFilterFor2(t *testing.T) {
 	}
 	genFilter, err := engine.NewRuleEngine(repo)
 	if err != nil {
-		t.Fatalf("failed RuleToRuleDefinition: %s", err)
+		t.Fatalf("failed ruleToRuleDefinition: %s", err)
 	}
 	if event, err := utils.ReadEvent("../examples/data/data_for_each_test2.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)

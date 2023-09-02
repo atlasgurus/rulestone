@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/atlasgurus/rulestone/api"
-	"github.com/atlasgurus/rulestone/types"
 	"gopkg.in/yaml.v3"
 	"io"
 	"os"
@@ -87,24 +85,4 @@ func ReadEvents(path string, callback func(interface{}) error) error {
 	}
 
 	return nil
-}
-
-func ReadRuleFromFile(path string, ctx *types.AppContext) (*api.Rule, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	fileType := filepath.Ext(path)
-	fileType = fileType[1:] // Remove the dot from the extension
-
-	fapi := api.NewRuleApi(ctx)
-	return fapi.ReadRule(f, fileType)
-}
-
-func ReadRuleFromString(rule string, format string, ctx *types.AppContext) (*api.Rule, error) {
-	r := strings.NewReader(rule)
-	fapi := api.NewRuleApi(ctx)
-	return fapi.ReadRule(r, format)
 }

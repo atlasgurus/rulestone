@@ -1,37 +1,80 @@
 package engine
 
 import (
-	"github.com/atlasgurus/rulestone/api"
+	"encoding/json"
 	"github.com/atlasgurus/rulestone/cateng"
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/objectmap"
 	"github.com/atlasgurus/rulestone/types"
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
+	"gopkg.in/yaml.v3"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+type ExternalRule struct {
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Expression string                 `json:"expression"`
+}
+
+type RuleApi struct {
+	ctx *types.AppContext
+}
+
+type InternalRule struct {
+	Metadata  map[string]interface{}
+	Condition condition.Condition
+}
+
+func externalToInternalRule(rule *ExternalRule) (*InternalRule, error) {
+	cond := condition.NewExprCondition(rule.Expression)
+	if cond.GetKind() == condition.ErrorCondKind {
+		return nil, cond.(*condition.ErrorCondition).Err
+	}
+	return &InternalRule{
+		Metadata:  rule.Metadata,
+		Condition: cond}, nil
+}
+
+func (api *RuleApi) ReadRule(r io.Reader, fileType string) (*InternalRule, error) {
+	var result ExternalRule
+
+	switch strings.ToLower(fileType) {
+	case "json":
+		decoder := json.NewDecoder(r)
+		if err := decoder.Decode(&result); err != nil {
+			return nil, api.ctx.Errorf("error parsing JSON:%s", err)
+		}
+	case "yaml", "yml":
+		decoder := yaml.NewDecoder(r)
+		if err := decoder.Decode(&result); err != nil {
+			return nil, api.ctx.Errorf("error parsing YAML:%s", err)
+		}
+	default:
+		return nil, api.ctx.Errorf("unsupported file type:%s", fileType)
+	}
+
+	return externalToInternalRule(&result)
+}
+
+func NewRuleApi(ctx *types.AppContext) *RuleApi {
+	return &RuleApi{ctx: ctx}
+}
+
 type RuleEngineRepo struct {
 	Rules   []*GeneralRuleRecord
 	ctx     *types.AppContext
-	ruleApi *api.RuleApi
+	ruleApi *RuleApi
 }
 
-func (repo *RuleEngineRepo) Register(f *api.RuleDefinition) uint {
+func (repo *RuleEngineRepo) Register(f *InternalRule) uint {
 	result := uint(len(repo.Rules))
 	repo.Rules = append(repo.Rules, &GeneralRuleRecord{f, result})
 	return result
-}
-
-func (repo *RuleEngineRepo) RegisterRule(rule *api.Rule) (uint, error) {
-	rd, err := repo.ruleApi.RuleToRuleDefinition(rule)
-	if err != nil {
-		return math.MaxUint, err
-	}
-	return repo.Register(rd), nil
 }
 
 func (repo *RuleEngineRepo) RegisterRuleFromString(rule string, format string) (uint, error) {
@@ -40,7 +83,7 @@ func (repo *RuleEngineRepo) RegisterRuleFromString(rule string, format string) (
 	if err != nil {
 		return math.MaxUint, err
 	}
-	return repo.RegisterRule(rd)
+	return repo.Register(rd), nil
 }
 
 func (repo *RuleEngineRepo) RegisterRuleFromFile(path string) (uint, error) {
@@ -57,7 +100,7 @@ func (repo *RuleEngineRepo) RegisterRuleFromFile(path string) (uint, error) {
 	if err != nil {
 		return math.MaxUint, err
 	}
-	return repo.RegisterRule(rule)
+	return repo.Register(rule), nil
 }
 
 func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, error) {
@@ -163,7 +206,7 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 	return f.catEngine.MatchEvent(eventCategories)
 }
 
-func (f *RuleEngine) GetRuleDefinition(ruleId uint) *api.RuleDefinition {
+func (f *RuleEngine) GetRuleDefinition(ruleId uint) *InternalRule {
 	if ruleId >= 0 && int(ruleId) >= 0 && int(ruleId) < len(f.repo.Rules) {
 		return f.repo.Rules[ruleId].definition
 	} else {

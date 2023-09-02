@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"fmt"
-	"github.com/atlasgurus/rulestone/api"
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/immutable"
 	"github.com/atlasgurus/rulestone/objectmap"
@@ -22,11 +21,11 @@ import (
 )
 
 type RepoInterface interface {
-	Register(f *api.RuleDefinition)
+	Register(f *InternalRule)
 }
 
 type GeneralRuleRecord struct {
-	definition *api.RuleDefinition
+	definition *InternalRule
 	id         uint
 }
 
@@ -41,7 +40,7 @@ func (repo *RuleEngineRepo) GetAppCtx() *types.AppContext {
 
 func NewRuleEngineRepo() *RuleEngineRepo {
 	ctx := types.NewAppContext()
-	return &RuleEngineRepo{ctx: ctx, ruleApi: api.NewRuleApi(ctx)}
+	return &RuleEngineRepo{ctx: ctx, ruleApi: NewRuleApi(ctx)}
 }
 
 type CatEvaluatorKind int8
@@ -128,10 +127,6 @@ func (repo *CompareCondRepo) ConvertToCategoryCondition(c condition.Condition, p
 		panic("CategoryCondKind not expected")
 	case condition.CompareCondKind:
 		result = repo.processCompareCondition(c.(*condition.CompareCondition), parentScope)
-	case condition.ForAllCondKind:
-		result = repo.processForAllCondition(c.(*condition.ForAllCond), parentScope)
-	case condition.ForSomeCondKind:
-		result = repo.processForSomeCondition(c.(*condition.ForSomeCond), parentScope)
 	case condition.ExprCondKind:
 		result = repo.processExprCondition(c.(*condition.ExprCondition), parentScope)
 	default:
@@ -594,10 +589,6 @@ func (repo *CompareCondRepo) genEvalForCondition(
 		panic("CategoryCondKind not expected")
 	case condition.CompareCondKind:
 		return repo.genEvalForCompareCondition(c.(*condition.CompareCondition), parentScope)
-	case condition.ForAllCondKind:
-		return repo.genEvalForAllCondition(c.(*condition.ForAllCond), parentScope)
-	case condition.ForSomeCondKind:
-		return repo.genEvalForSomeCondition(c.(*condition.ForSomeCond), parentScope)
 	case condition.ExprCondKind:
 		return repo.genEvalForExprCondition(c.(*condition.ExprCondition), parentScope)
 	default:
@@ -640,15 +631,15 @@ func (repo *CompareCondRepo) setupEvalForEach(parentScope *ForEachScope, element
 }
 
 func (repo *CompareCondRepo) genEvalForAllCondition(
-	cond *condition.ForAllCond, parentScope *ForEachScope) condition.Operand {
+	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Operand {
 
-	arrayAddress, newScope, err := repo.setupEvalForEach(parentScope, cond.Element, cond.Path)
+	arrayAddress, newScope, err := repo.setupEvalForEach(parentScope, element, path)
 	if err != nil {
 		return condition.NewErrorOperand(err)
 	} else {
 		nestingLevel := newScope.NestingLevel
 
-		eval := repo.genEvalForCondition(cond.Cond, newScope)
+		eval := repo.genEvalForCondition(cond, newScope)
 		if eval.GetKind() == condition.ErrorOperandKind {
 			return eval
 		}
@@ -692,36 +683,33 @@ func (repo *CompareCondRepo) genEvalForAllCondition(
 }
 
 func (repo *CompareCondRepo) processForAllCondition(
-	cond *condition.ForAllCond, parentScope *ForEachScope) condition.Condition {
-	evalCatRec, ok := repo.CondToCompareCondRecord.Get(cond)
-	if !ok {
-		eval := repo.genEvalForAllCondition(cond, parentScope)
+	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Condition {
+	eval := repo.genEvalForAllCondition(path, element, cond, parentScope)
 
-		if eval.GetKind() == condition.ErrorOperandKind {
-			return condition.NewErrorCondition(eval.(condition.ErrorOperand))
-		}
-		evalCatRec = repo.NewEvalCategoryRec(eval)
-		repo.CondToCompareCondRecord.Put(cond, evalCatRec)
-		// ARRAY_ELEMENT issue
-		if arrayAddress, err := getAttributePathAddress(cond.Path+"[]", parentScope); err != nil {
-			//if elementAddress, err := getAttributePathAddress(repo, cond.Path, parentScope); err != nil {
-			panic("should not happen: failed the check that passed earlier")
-		} else {
-			repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
-		}
+	if eval.GetKind() == condition.ErrorOperandKind {
+		return condition.NewErrorCondition(eval.(condition.ErrorOperand))
+	}
+	evalCatRec := repo.NewEvalCategoryRec(eval)
+	repo.CondToCompareCondRecord.Put(cond, evalCatRec)
+	// ARRAY_ELEMENT issue
+	if arrayAddress, err := getAttributePathAddress(path+"[]", parentScope); err != nil {
+		//if elementAddress, err := getAttributePathAddress(repo, cond.Path, parentScope); err != nil {
+		panic("should not happen: failed the check that passed earlier")
+	} else {
+		repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
 
 func (repo *CompareCondRepo) genEvalForSomeCondition(
-	cond *condition.ForSomeCond, parentScope *ForEachScope) condition.Operand {
+	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Operand {
 	// ARRAY_ELEMENT issue
-	arrayAddress, newScope, err := repo.setupEvalForEach(parentScope, cond.Element, cond.Path)
+	arrayAddress, newScope, err := repo.setupEvalForEach(parentScope, element, path)
 	if err != nil {
 		return condition.NewErrorOperand(err)
 	} else {
 		nestingLevel := newScope.NestingLevel
-		eval := repo.genEvalForCondition(cond.Cond, newScope)
+		eval := repo.genEvalForCondition(cond, newScope)
 		if eval.GetKind() == condition.ErrorOperandKind {
 			return eval
 		}
@@ -765,10 +753,10 @@ func (repo *CompareCondRepo) genEvalForSomeCondition(
 }
 
 func (repo *CompareCondRepo) processForSomeCondition(
-	cond *condition.ForSomeCond, parentScope *ForEachScope) condition.Condition {
+	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Condition {
 	evalCatRec, ok := repo.CondToCompareCondRecord.Get(cond)
 	if !ok {
-		eval := repo.genEvalForSomeCondition(cond, parentScope)
+		eval := repo.genEvalForSomeCondition(path, element, cond, parentScope)
 		if eval.GetKind() == condition.ErrorOperandKind {
 			return condition.NewErrorCondition(eval.(condition.ErrorOperand))
 		}
@@ -776,7 +764,7 @@ func (repo *CompareCondRepo) processForSomeCondition(
 		evalCatRec = repo.NewEvalCategoryRec(eval)
 		repo.CondToCompareCondRecord.Put(cond, evalCatRec)
 		// ARRAY_ELEMENT issue
-		if arrayAddress, err := getAttributePathAddress(cond.Path+"[]", parentScope); err != nil {
+		if arrayAddress, err := getAttributePathAddress(path+"[]", parentScope); err != nil {
 			//if elementAddress, err := getAttributePathAddress(repo, cond.Path, parentScope); err != nil {
 			panic("should not happen: failed the check that passed earlier")
 		} else {
@@ -936,18 +924,16 @@ func (repo *CompareCondRepo) processForEachFunc(n *ast.CallExpr, kind string, sc
 
 	switch kind {
 	case "all":
-		return repo.ConvertToCategoryCondition(
-			condition.NewForAllCond(
-				string(elementOperand.(condition.StringOperand)),
-				string(pathOperand.(condition.StringOperand)),
-				exprCond),
+		return repo.processForAllCondition(
+			string(pathOperand.(condition.StringOperand)),
+			string(elementOperand.(condition.StringOperand)),
+			exprCond,
 			scope)
 	case "some":
-		return repo.ConvertToCategoryCondition(
-			condition.NewForSomeCond(
-				string(elementOperand.(condition.StringOperand)),
-				string(pathOperand.(condition.StringOperand)),
-				exprCond),
+		return repo.processForSomeCondition(
+			string(pathOperand.(condition.StringOperand)),
+			string(elementOperand.(condition.StringOperand)),
+			exprCond,
 			scope)
 
 	default:
@@ -997,12 +983,10 @@ func (repo *CompareCondRepo) processForAllFunc(n *ast.CallExpr, scope *ForEachSc
 	if err != nil {
 		return condition.NewErrorCondition(err)
 	}
-	return repo.ConvertToCategoryCondition(
-		condition.NewForAllCond(
-			string(elementOperand.(condition.StringOperand)),
-			string(pathOperand.(condition.StringOperand)),
-			exprCond),
-		scope)
+	return repo.processForAllCondition(
+		string(pathOperand.(condition.StringOperand)),
+		string(elementOperand.(condition.StringOperand)),
+		exprCond, scope)
 }
 
 func (repo *CompareCondRepo) processForSomeFunc(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
@@ -1010,12 +994,10 @@ func (repo *CompareCondRepo) processForSomeFunc(n *ast.CallExpr, scope *ForEachS
 	if err != nil {
 		return condition.NewErrorCondition(err)
 	}
-	return repo.ConvertToCategoryCondition(
-		condition.NewForSomeCond(
-			string(elementOperand.(condition.StringOperand)),
-			string(pathOperand.(condition.StringOperand)),
-			exprCond),
-		scope)
+	return repo.processForSomeCondition(
+		string(pathOperand.(condition.StringOperand)),
+		string(elementOperand.(condition.StringOperand)),
+		exprCond, scope)
 }
 
 func (repo *CompareCondRepo) funcForSome(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
@@ -1024,10 +1006,9 @@ func (repo *CompareCondRepo) funcForSome(n *ast.CallExpr, scope *ForEachScope) c
 		return condition.NewErrorOperand(err)
 	}
 	return repo.genEvalForSomeCondition(
-		condition.NewForSomeCond(
-			string(elementOperand.(condition.StringOperand)),
-			string(pathOperand.(condition.StringOperand)),
-			exprCond).(*condition.ForSomeCond),
+		string(pathOperand.(condition.StringOperand)),
+		string(elementOperand.(condition.StringOperand)),
+		exprCond,
 		scope)
 }
 
@@ -1037,10 +1018,9 @@ func (repo *CompareCondRepo) funcForAll(n *ast.CallExpr, scope *ForEachScope) co
 		return condition.NewErrorOperand(err)
 	}
 	return repo.genEvalForAllCondition(
-		condition.NewForAllCond(
-			string(elementOperand.(condition.StringOperand)),
-			string(pathOperand.(condition.StringOperand)),
-			exprCond).(*condition.ForAllCond),
+		string(pathOperand.(condition.StringOperand)),
+		string(elementOperand.(condition.StringOperand)),
+		exprCond,
 		scope)
 }
 
@@ -1309,7 +1289,6 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 					case token.QUO:
 						return condition.NewFloatOperand(lv / rv)
 					default:
-						panic("implement me")
 						return condition.NewErrorOperand(fmt.Errorf("unsupported operator: %s", n.Op.String()))
 					}
 				}, xOperand, yOperand)
@@ -1330,7 +1309,6 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 		case token.LOR:
 			return repo.genEvalForLogicalOp(token.LOR, xOperand, yOperand)
 		default:
-			panic("implement me")
 			return condition.NewErrorOperand(fmt.Errorf("unsupported operator: %s", n.Op.String()))
 		}
 	case *ast.UnaryExpr:
@@ -1454,8 +1432,8 @@ func funcRegexpMatch(repo *CompareCondRepo, n *ast.CallExpr, scope *ForEachScope
 	}
 
 	patternString := string(patternOperand.(condition.StringOperand))
-	re, error := regexp.Compile(patternString)
-	if error != nil {
+	re, err := regexp.Compile(patternString)
+	if err != nil {
 		return condition.NewErrorOperand(
 			fmt.Errorf("invalid pattern:\"%s\" passed to regexpMatch()", patternString))
 	}

@@ -1,9 +1,7 @@
 package benchmark
 
 import (
-	"github.com/atlasgurus/rulestone/api"
 	"github.com/atlasgurus/rulestone/engine"
-	"github.com/atlasgurus/rulestone/types"
 	"github.com/atlasgurus/rulestone/utils"
 	"io/ioutil"
 	"path"
@@ -11,8 +9,6 @@ import (
 )
 
 func TestFilterApiPerf1(t *testing.T) {
-	ctx := types.NewAppContext()
-	fapi := api.NewRuleApi(ctx)
 	repo := engine.NewRuleEngineRepo()
 
 	// Load rule files from a directory
@@ -23,19 +19,11 @@ func TestFilterApiPerf1(t *testing.T) {
 	}
 
 	for _, ruleFile := range ruleFiles {
-		rule, err := utils.ReadRuleFromFile(path.Join("../examples/rules/gen.configs.rulestone", ruleFile.Name()), ctx)
+		_, err := repo.RegisterRuleFromFile(path.Join("../examples/rules/gen.configs.rulestone", ruleFile.Name()))
 		if err != nil {
 			t.Fatalf("Error opening file: %v", err)
 			return
 		}
-
-		fd, err := fapi.RuleToRuleDefinition(rule)
-		if err != nil {
-			t.Fatalf("Error converting rule: %v", err)
-			return
-		}
-
-		repo.Register(fd)
 	}
 
 	genFilter, err := engine.NewRuleEngine(repo)
@@ -56,6 +44,5 @@ func TestFilterApiPerf1(t *testing.T) {
 
 	if repo.GetAppCtx().NumErrors() > 0 {
 		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
-		repo.GetAppCtx().PrintErrors()
 	}
 }

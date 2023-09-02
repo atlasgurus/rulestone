@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"github.com/atlasgurus/rulestone/api"
 	c "github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/engine"
 	"github.com/atlasgurus/rulestone/utils"
@@ -23,9 +22,9 @@ func TestGeneralFilter0(t *testing.T) {
 			c.NewCompareCond(c.CompareEqualOp, c.NewAttributeOperand("children[1].name"), c.NewStringOperand("David")),
 		)
 	repo := engine.NewRuleEngineRepo()
-	ruleDef1 := &api.RuleDefinition{Condition: cond1}
+	ruleDef1 := &engine.InternalRule{Condition: cond1}
 	repo.Register(ruleDef1)
-	ruleDef2 := &api.RuleDefinition{Condition: cond2}
+	ruleDef2 := &engine.InternalRule{Condition: cond2}
 	repo.Register(ruleDef2)
 	genFilter, err := engine.NewRuleEngine(repo)
 	if err != nil {

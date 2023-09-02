@@ -19,10 +19,8 @@ const (
 	NotCondKind               = 3
 	CategoryCondKind          = 4
 	CompareCondKind           = 5
-	ForAllCondKind            = 6
-	ForSomeCondKind           = 7
-	ExprCondKind              = 8
-	ErrorCondKind             = 9
+	ExprCondKind              = 6
+	ErrorCondKind             = 7
 )
 
 type Condition interface {
@@ -166,10 +164,6 @@ func (c *CategoryCond) Equals(v immutable.SetElement) bool {
 type ErrorCondition struct {
 	Err  error
 	Hash uint64
-}
-
-func (c *ErrorCondition) Error() string {
-	return c.Err.Error()
 }
 
 func NewErrorCondition(val error) Condition {
@@ -936,76 +930,6 @@ type ForEach interface {
 	GetCond() Condition
 	GetHash() uint64
 	Equals(element immutable.SetElement) bool
-}
-
-type ForAllCond struct {
-	Element string
-	Path    string
-	Cond    Condition
-	Hash    uint64
-}
-
-func (c *ForAllCond) GetElement() string {
-	return c.Element
-}
-
-func (c *ForAllCond) GetPath() string {
-	return c.Path
-}
-
-func (c *ForAllCond) GetCond() Condition {
-	return c.Cond
-}
-
-func (c *ForAllCond) GetHash() uint64 {
-	return immutable.HashInt([]uint64{immutable.HashString(c.Path), immutable.HashString(c.Element), c.Cond.GetHash()})
-}
-
-func (c *ForAllCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
-}
-
-func NewForAllCond(element string, path string, cond Condition) Condition {
-	return &ForAllCond{
-		Element: element,
-		Path:    path,
-		Cond:    cond,
-		Hash:    immutable.HashInt([]uint64{immutable.HashString(path), immutable.HashString(element), cond.GetHash()})}
-}
-
-func (c *ForAllCond) GetOperands() []Condition {
-	// TODO: does it make sense?
-	return []Condition{c.Cond}
-}
-
-func (c *ForAllCond) GetKind() CondKind {
-	return ForAllCondKind
-}
-
-type ForSomeCond struct {
-	Element string
-	Path    string
-	Cond    Condition
-}
-
-func NewForSomeCond(element string, path string, cond Condition) Condition {
-	return &ForSomeCond{Element: element, Path: path, Cond: cond}
-}
-
-func (c *ForSomeCond) GetHash() uint64 {
-	return immutable.HashInt([]uint64{immutable.HashString(c.Path), immutable.HashString(c.Element), c.Cond.GetHash()})
-}
-
-func (c *ForSomeCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
-}
-
-func (c *ForSomeCond) GetOperands() []Condition {
-	return []Condition{c.Cond}
-}
-
-func (c *ForSomeCond) GetKind() CondKind {
-	return ForSomeCondKind
 }
 
 func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {

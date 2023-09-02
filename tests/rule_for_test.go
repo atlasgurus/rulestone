@@ -189,26 +189,19 @@ func TestFilterForError3(t *testing.T) {
 }
 
 func TestFilterFor1(t *testing.T) {
-	ctx := types.NewAppContext()
-	fapi := api.NewRuleApi(ctx)
-
-	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test1.yaml", ctx)
+	repo := engine.NewRuleEngineRepo()
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_1.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
 	}
-	fd1, err := fapi.RuleToRuleDefinition(rule1)
-	if err != nil {
-		t.Fatalf("failed RuleToRuleDefinition: %v", err)
-	}
-	repo.Register(fd1)
+
 	genFilter, err := engine.NewRuleEngine(repo)
 	if err != nil {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
 
-	if event, err := utils.ReadEvent("../examples/data/data_for_each_test1.json"); err != nil {
+	if event, err := utils.ReadEvent("../examples/data/data_for_each_test1.yaml"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
@@ -217,28 +210,19 @@ func TestFilterFor1(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterFor2(t *testing.T) {
-	ctx := types.NewAppContext()
-	fapi := api.NewRuleApi(ctx)
-
-	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test2.yaml", ctx)
+	repo := engine.NewRuleEngineRepo()
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_test2.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
 	}
-	fd1, err := fapi.RuleToRuleDefinition(rule1)
-	if err != nil {
-		t.Fatalf("failed RuleToRuleDefinition: %s", err)
-		return
-	}
-	repo.Register(fd1)
 	genFilter, err := engine.NewRuleEngine(repo)
 	if err != nil {
 		t.Fatalf("failed RuleToRuleDefinition: %s", err)
@@ -252,28 +236,19 @@ func TestFilterFor2(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterFor3(t *testing.T) {
-	ctx := types.NewAppContext()
-	fapi := api.NewRuleApi(ctx)
-
-	repo := engine.NewRuleEngineRepo(ctx)
-	rule1, err := utils.ReadRuleFromFile("../examples/rules/rule_for_each_test3.yaml", ctx)
+	repo := engine.NewRuleEngineRepo()
+	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_test3.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
 		return
 	}
-	fd1, err := fapi.RuleToRuleDefinition(rule1)
-	if err != nil {
-		t.Fatalf("failed RuleToRuleDefinition: %s", err)
-		return
-	}
-	repo.Register(fd1)
 	genFilter, err := engine.NewRuleEngine(repo)
 	if err != nil {
 		t.Fatalf("failed NewRuleEngine: %s", err)
@@ -287,8 +262,8 @@ func TestFilterFor3(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }

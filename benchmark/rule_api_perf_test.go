@@ -13,7 +13,7 @@ import (
 func TestFilterApiPerf1(t *testing.T) {
 	ctx := types.NewAppContext()
 	fapi := api.NewRuleApi(ctx)
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 
 	// Load rule files from a directory
 	ruleFiles, err := ioutil.ReadDir("../examples/rules/gen.configs.rulestone")
@@ -54,8 +54,8 @@ func TestFilterApiPerf1(t *testing.T) {
 
 	t.Logf("Number of matches: %d/%d", numMatches, numEvents)
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }

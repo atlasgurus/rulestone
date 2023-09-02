@@ -2,15 +2,13 @@ package tests
 
 import (
 	"github.com/atlasgurus/rulestone/engine"
-	"github.com/atlasgurus/rulestone/types"
 	"github.com/atlasgurus/rulestone/utils"
 	"testing"
 )
 
 func TestFilterApiExpression0(t *testing.T) {
-	ctx := types.NewAppContext()
 
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test0.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -30,14 +28,13 @@ func TestFilterApiExpression0(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 func TestFilterApiExpression1(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test1.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -57,15 +54,14 @@ func TestFilterApiExpression1(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterApiExpression2(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test2.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -85,15 +81,14 @@ func TestFilterApiExpression2(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterApiExpression3(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test3.yaml")
 	if err != nil {
 		t.Fatalf("failed NewRuleEngineRepo: %v", err)
@@ -113,15 +108,14 @@ func TestFilterApiExpression3(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterApiExpression4(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test4.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -141,15 +135,14 @@ func TestFilterApiExpression4(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterApiExpression5(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test5.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -169,15 +162,14 @@ func TestFilterApiExpression5(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }
 
 func TestFilterApiExpression6(t *testing.T) {
-	ctx := types.NewAppContext()
-	repo := engine.NewRuleEngineRepo(ctx)
+	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_expression_test6.yaml")
 	if err != nil {
 		t.Fatalf("failed RegisterRuleFromFile: %v", err)
@@ -202,8 +194,8 @@ func TestFilterApiExpression6(t *testing.T) {
 		}
 	}
 
-	if ctx.NumErrors() > 0 {
-		t.Fatalf("failed due to %d errors", ctx.NumErrors())
-		ctx.PrintErrors()
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
 	}
 }

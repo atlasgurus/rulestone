@@ -684,19 +684,22 @@ func (repo *CompareCondRepo) genEvalForAllCondition(
 
 func (repo *CompareCondRepo) processForAllCondition(
 	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Condition {
-	eval := repo.genEvalForAllCondition(path, element, cond, parentScope)
+	dummyCond := condition.NewAndCond(condition.NewExprCondition("forAll"), condition.NewExprCondition(path), condition.NewExprCondition(element), cond)
+	evalCatRec, ok := repo.CondToCompareCondRecord.Get(dummyCond)
+	if !ok {
+		eval := repo.genEvalForAllCondition(path, element, cond, parentScope)
 
-	if eval.GetKind() == condition.ErrorOperandKind {
-		return condition.NewErrorCondition(eval.(condition.ErrorOperand))
-	}
-	evalCatRec := repo.NewEvalCategoryRec(eval)
-	repo.CondToCompareCondRecord.Put(cond, evalCatRec)
-	// ARRAY_ELEMENT issue
-	if arrayAddress, err := getAttributePathAddress(path+"[]", parentScope); err != nil {
-		//if elementAddress, err := getAttributePathAddress(repo, cond.Path, parentScope); err != nil {
-		panic("should not happen: failed the check that passed earlier")
-	} else {
-		repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
+		if eval.GetKind() == condition.ErrorOperandKind {
+			return condition.NewErrorCondition(eval.(condition.ErrorOperand))
+		}
+		evalCatRec = repo.NewEvalCategoryRec(eval)
+		repo.CondToCompareCondRecord.Put(dummyCond, evalCatRec)
+		// ARRAY_ELEMENT issue
+		if arrayAddress, err := getAttributePathAddress(path+"[]", parentScope); err != nil {
+			panic("should not happen: failed the check that passed earlier")
+		} else {
+			repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
+		}
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
@@ -754,7 +757,8 @@ func (repo *CompareCondRepo) genEvalForSomeCondition(
 
 func (repo *CompareCondRepo) processForSomeCondition(
 	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Condition {
-	evalCatRec, ok := repo.CondToCompareCondRecord.Get(cond)
+	dummyCond := condition.NewAndCond(condition.NewExprCondition("forSome"), condition.NewExprCondition(path), condition.NewExprCondition(element), cond)
+	evalCatRec, ok := repo.CondToCompareCondRecord.Get(dummyCond)
 	if !ok {
 		eval := repo.genEvalForSomeCondition(path, element, cond, parentScope)
 		if eval.GetKind() == condition.ErrorOperandKind {
@@ -762,7 +766,7 @@ func (repo *CompareCondRepo) processForSomeCondition(
 		}
 
 		evalCatRec = repo.NewEvalCategoryRec(eval)
-		repo.CondToCompareCondRecord.Put(cond, evalCatRec)
+		repo.CondToCompareCondRecord.Put(dummyCond, evalCatRec)
 		// ARRAY_ELEMENT issue
 		if arrayAddress, err := getAttributePathAddress(path+"[]", parentScope); err != nil {
 			//if elementAddress, err := getAttributePathAddress(repo, cond.Path, parentScope); err != nil {

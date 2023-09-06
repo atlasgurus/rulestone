@@ -71,12 +71,16 @@ func TestFilterFor3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed NewRuleEngine: %s", err)
 	}
+	numCatEvals := genFilter.Metrics.NumCatEvals
 	if event, err := utils.ReadEvent("../examples/data/data_for_each_test3.json"); err != nil {
 		t.Fatalf("failed ReadEvent: %s", err)
 	} else {
 		matches := genFilter.MatchEvent(event)
 		if len(matches) != 1 {
 			t.Fatalf("failed number of matches %d != 1", len(matches))
+		}
+		if genFilter.Metrics.NumCatEvals-numCatEvals != 2 {
+			t.Fatalf("failed common category elimination optimization")
 		}
 	}
 

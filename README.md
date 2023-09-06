@@ -104,15 +104,15 @@ Rulestone expressions supports:
 * String literals: `"string"`
 * Numeric literals: `1`, `2.3`
 * Field access: `field1`, `field1.field2`
-* Functions: `hasValue`, `isEqualToAny`, `regexpMatch`, `date`
+* Functions: `hasValue`, `isEqualToAny`, `regexpMatch`, `date`, `forAll`, `forSome`
 * Date literals: `date("11/29/1968")`
-* Date comparison operators: `<`, `<=`, `>`, `>=`, `==`
-* Date arithmetic operations: `+`, `-`
 
 
 * `hasValue` - check that object has specified field, for example `hasValue(field1)`
 * `isEqualToAny` - check that object field is equal to any specified value, for example `isEqualToAny(field1, 1, 2, 3, '4')`
 * `regexpMatch` - match the Go regexp, for example `regexpMatch("^\\d{4}/\\d{2}/\\d{2}$", child.dob)`
+* `forAll`  - test that a logical expression is true for all members of the list, for example `forAll('children', 'child', child.age > 10)`
+* `forSome`  - test that a logical expression is true for at least one member of the list, for example `forSome('children', 'child', child.age > 10)`
 
 ### Dates
 

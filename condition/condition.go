@@ -934,6 +934,8 @@ type ForEach interface {
 
 func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 	switch n := v.(type) {
+	case nil:
+		return NewNullOperand(nil)
 	case int:
 		return NewIntOperand(int64(n))
 	case int64:

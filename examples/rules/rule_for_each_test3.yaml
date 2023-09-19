@@ -2,3 +2,4 @@ expression: forAll("members", "member", member.name == "Alice" && member.age > 2
             && forSome("members", "member", member.name == "Alice" && member.age > 20)
             && forAll("members", "member", member.name == "Alice" && member.age > 20)
             && forSome("members", "member", member.name == "Alice" && member.age > 20)
+            && !hasValue(foo)

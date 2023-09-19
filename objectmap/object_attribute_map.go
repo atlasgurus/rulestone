@@ -409,7 +409,8 @@ func (mapper *ObjectAttributeMapper) FreeObjects() {
 
 func (mapper *ObjectAttributeMapper) buildObjectMap(
 	path string, v interface{}, values []interface{}, dictRec *AttrDictionaryRec, attrCallback func([]int), address []int) {
-	switch reflect.ValueOf(v).Kind() {
+	kind := reflect.ValueOf(v).Kind()
+	switch kind {
 	case reflect.Map:
 		_, ok := dictRec.dict[path]
 		if ok {
@@ -442,7 +443,7 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 			}
 			attrCallback(newAddress)
 		}
-	case reflect.Int, reflect.Int64, reflect.String, reflect.Float64, reflect.Bool:
+	case reflect.Int, reflect.Int64, reflect.String, reflect.Float64, reflect.Bool, reflect.Invalid:
 		attrDictRec, ok := dictRec.dict[path]
 		if ok && attrDictRec.mapIndex != -1 {
 			newAddress := append(address, attrDictRec.mapIndex)

@@ -1,0 +1,9 @@
+- metadata:
+    rule_id: "first_rule"
+  expression: 'name == "John"'
+- metadata:
+    rule_id: "second_rule"
+  expression: 'name == "Diana"'
+- metadata:
+    rule_id: "third_rule"
+  expression: 'name == "Matt"'

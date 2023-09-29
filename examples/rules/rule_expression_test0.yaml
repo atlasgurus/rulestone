@@ -1,4 +1,4 @@
-metadata:
-  created: "2023-03-29"
-  priority: 10
-expression: '!(name == "Frank" && age != 20 && child.nested[1].age + 1== 11)'
+- metadata:
+    created: "2023-03-29"
+    priority: 10
+  expression: '!(name == "Frank" && age != 20 && child.nested[1].age + 1== 11)'

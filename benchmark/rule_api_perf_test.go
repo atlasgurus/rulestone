@@ -19,7 +19,7 @@ func TestFilterApiPerf1(t *testing.T) {
 	}
 
 	for _, ruleFile := range ruleFiles {
-		_, err := repo.RegisterRuleFromFile(path.Join("../examples/rules/gen.configs.rulestone", ruleFile.Name()))
+		_, err := repo.RegisterRulesFromFile(path.Join("../examples/rules/gen.configs.rulestone", ruleFile.Name()))
 		if err != nil {
 			t.Fatalf("Error opening file: %v", err)
 			return

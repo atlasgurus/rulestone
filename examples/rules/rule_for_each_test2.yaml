@@ -1,4 +1,4 @@
-expression: forSome("members[0].children", "child",
+- expression: forSome("members[0].children", "child",
               forSome("child.children", "grand_child1",
                 forSome("child.children", "grand_child2",
                   grand_child1.age != grand_child2.age &&

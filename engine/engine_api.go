@@ -40,25 +40,33 @@ func externalToInternalRule(rule *ExternalRule) (*InternalRule, error) {
 		Condition: cond}, nil
 }
 
-func (api *RuleApi) ReadRule(r io.Reader, fileType string) (*InternalRule, error) {
-	var result ExternalRule
+func (api *RuleApi) ReadRules(r io.Reader, fileType string) ([]InternalRule, error) {
+	var result []ExternalRule
 
 	switch strings.ToLower(fileType) {
 	case "json":
 		decoder := json.NewDecoder(r)
 		if err := decoder.Decode(&result); err != nil {
-			return nil, api.ctx.Errorf("error parsing JSON:%s", err)
+			return nil, api.ctx.Errorf("error parsing JSON: %s", err)
 		}
 	case "yaml", "yml":
 		decoder := yaml.NewDecoder(r)
 		if err := decoder.Decode(&result); err != nil {
-			return nil, api.ctx.Errorf("error parsing YAML:%s", err)
+			return nil, api.ctx.Errorf("error parsing YAML: %s", err)
 		}
 	default:
-		return nil, api.ctx.Errorf("unsupported file type:%s", fileType)
+		return nil, api.ctx.Errorf("unsupported file type: %s", fileType)
 	}
 
-	return externalToInternalRule(&result)
+	internalRules := make([]InternalRule, len(result))
+	for i, rule := range result {
+		internalRule, err := externalToInternalRule(&rule)
+		if err != nil {
+			return nil, err
+		}
+		internalRules[i] = *internalRule
+	}
+	return internalRules, nil
 }
 
 func NewRuleApi(ctx *types.AppContext) *RuleApi {
@@ -79,28 +87,33 @@ func (repo *RuleEngineRepo) Register(f *InternalRule) uint {
 
 func (repo *RuleEngineRepo) RegisterRuleFromString(rule string, format string) (uint, error) {
 	r := strings.NewReader(rule)
-	rd, err := repo.ruleApi.ReadRule(r, format)
+	rules, err := repo.ruleApi.ReadRules(r, format)
 	if err != nil {
 		return math.MaxUint, err
 	}
-	return repo.Register(rd), nil
+	return repo.Register(&rules[0]), nil
 }
 
-func (repo *RuleEngineRepo) RegisterRuleFromFile(path string) (uint, error) {
+func (repo *RuleEngineRepo) RegisterRulesFromFile(path string) ([]uint, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return math.MaxUint, err
+		return []uint{}, err
 	}
 	defer f.Close()
 
 	fileType := filepath.Ext(path)
 	fileType = fileType[1:] // Remove the dot from the extension
 
-	rule, err := repo.ruleApi.ReadRule(f, fileType)
+	rules, err := repo.ruleApi.ReadRules(f, fileType)
 	if err != nil {
-		return math.MaxUint, err
+		return []uint{}, err
 	}
-	return repo.Register(rule), nil
+	ruleIds := make([]uint, 0)
+	for i := range rules {
+		ruleId := repo.Register(&rules[i])
+		ruleIds = append(ruleIds, ruleId)
+	}
+	return ruleIds, nil
 }
 
 func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, error) {

@@ -8,9 +8,9 @@ import (
 
 func TestFilterFor1(t *testing.T) {
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_1.yaml")
+	_, err := repo.RegisterRulesFromFile("../examples/rules/rule_for_each_1.yaml")
 	if err != nil {
-		t.Fatalf("failed RegisterRuleFromFile: %v", err)
+		t.Fatalf("failed RegisterRulesFromFile: %v", err)
 		return
 	}
 
@@ -36,9 +36,9 @@ func TestFilterFor1(t *testing.T) {
 
 func TestFilterFor2(t *testing.T) {
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_test2.yaml")
+	_, err := repo.RegisterRulesFromFile("../examples/rules/rule_for_each_test2.yaml")
 	if err != nil {
-		t.Fatalf("failed RegisterRuleFromFile: %v", err)
+		t.Fatalf("failed RegisterRulesFromFile: %v", err)
 		return
 	}
 	genFilter, err := engine.NewRuleEngine(repo)
@@ -62,9 +62,9 @@ func TestFilterFor2(t *testing.T) {
 
 func TestFilterFor3(t *testing.T) {
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.RegisterRuleFromFile("../examples/rules/rule_for_each_test3.yaml")
+	_, err := repo.RegisterRulesFromFile("../examples/rules/rule_for_each_test3.yaml")
 	if err != nil {
-		t.Fatalf("failed RegisterRuleFromFile: %v", err)
+		t.Fatalf("failed RegisterRulesFromFile: %v", err)
 		return
 	}
 	genFilter, err := engine.NewRuleEngine(repo)

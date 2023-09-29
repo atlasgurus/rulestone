@@ -1,5 +1,5 @@
-metadata:
-  created: "2023-03-29"
-  priority: 10
-expression: 'hasValue(name) && name == "Frank"  && date(dob) < date(child.dob) && date("11/29/1968") > date(dob) && date(dob) == date("11/28/1968")'
+- metadata:
+    created: "2023-03-29"
+    priority: 10
+  expression: 'hasValue(name) && name == "Frank"  && date(dob) < date(child.dob) && date("11/29/1968") > date(dob) && date(dob) == date("11/28/1968")'
 

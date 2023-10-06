@@ -1,9 +1,9 @@
 - metadata:
     rule_id: "first_rule"
-  expression: 'name == "John"'
+  expression: 'name == "John" && age > 10'
 - metadata:
     rule_id: "second_rule"
-  expression: 'name == "Diana"'
+  expression: 'name == "Diana" || age < 10'
 - metadata:
     rule_id: "third_rule"
   expression: 'name == "Matt"'

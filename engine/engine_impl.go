@@ -228,7 +228,7 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 			default:
 				panic("Not implemented")
 			}
-		}, xEval, yEval)
+		}, xEval, yEval, repo.CondFactory.NewIntOperand(int64(compOp)))
 }
 
 // processCompareEqualToConstCondition: Special case equal compare against a constant that can be done via a hash lookup

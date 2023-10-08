@@ -265,3 +265,31 @@ func TestMultipleRulesPerFile(t *testing.T) {
 		repo.GetAppCtx().PrintErrors()
 	}
 }
+
+func TestGoKeywordsAndNumericPrefixedFields(t *testing.T) {
+	repo := engine.NewRuleEngineRepo()
+	_, err := repo.RegisterRulesFromFile("../examples/rules/go_keywords_numeric_prefixed_test.yaml")
+	if err != nil {
+		t.Fatalf("failed RegisterRulesFromFile: %v", err)
+		return
+	}
+
+	genFilter, err := engine.NewRuleEngine(repo)
+	if err != nil {
+		t.Fatalf("failed NewRuleEngine: %s", err)
+	}
+
+	if event, err := utils.ReadEvent("../examples/data/data_go_keywords_numeric_prefixed_test.json"); err != nil {
+		t.Fatalf("failed ReadEvent: %s", err)
+	} else {
+		matches := genFilter.MatchEvent(event)
+		if len(matches) != 3 {
+			t.Fatalf("failed number of matches %d != 1", len(matches))
+		}
+	}
+
+	if repo.GetAppCtx().NumErrors() > 0 {
+		t.Fatalf("failed due to %d errors", repo.GetAppCtx().NumErrors())
+		repo.GetAppCtx().PrintErrors()
+	}
+}

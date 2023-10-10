@@ -284,7 +284,7 @@ func TestGoKeywordsAndNumericPrefixedFields(t *testing.T) {
 	} else {
 		matches := genFilter.MatchEvent(event)
 		if len(matches) != 3 {
-			t.Fatalf("failed number of matches %d != 1", len(matches))
+			t.Fatalf("failed number of matches %d != 3", len(matches))
 		}
 	}
 

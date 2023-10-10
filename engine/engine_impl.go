@@ -1206,12 +1206,27 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 		case condition.ErrorOperandKind:
 			return x
 		case condition.SelOperandKind:
-			return repo.CondFactory.NewIndexOperand(
-				repo.CondFactory.NewSelOperand(
+			selector := x.(*condition.SelOperand).Selector
+			if selector == "INPUT" {
+				selector = ""
+			}
+			if i.GetKind() == condition.StringOperandKind {
+				return repo.CondFactory.NewSelOperand(
 					x.(*condition.SelOperand).Base,
-					x.(*condition.SelOperand).Selector+"[]"), i)
+					selector+"."+string(i.(condition.StringOperand)))
+			} else {
+				return repo.CondFactory.NewIndexOperand(
+					repo.CondFactory.NewSelOperand(
+						x.(*condition.SelOperand).Base,
+						selector+"[]"), i)
+			}
 		case condition.IndexOperandKind:
-			return repo.CondFactory.NewIndexOperand(repo.CondFactory.NewSelOperand(x, "[]"), i)
+			if i.GetKind() == condition.StringOperandKind {
+				return repo.CondFactory.NewSelOperand(
+					x, string(i.(condition.StringOperand)))
+			} else {
+				return repo.CondFactory.NewIndexOperand(repo.CondFactory.NewSelOperand(x, "[]"), i)
+			}
 		default:
 			panic("should not get here")
 		}

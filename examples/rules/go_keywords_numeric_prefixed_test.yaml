@@ -1,9 +1,9 @@
 - metadata:
     rule_id: "go_keyword_field_1"
-  expression: 'go == "test"'
+  expression: 'INPUT["go"] == "test"'
 - metadata:
     rule_id: "go_keyword_field_2"
-  expression: 'type == "test"'
+  expression: 'INPUT["type"] == "test"'
 - metadata:
     rule_id: "numeric_prefixed_field_1"
-  expression: '1155test == "test"'
+  expression: 'INPUT["1155test"] == "test"'

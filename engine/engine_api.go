@@ -63,6 +63,60 @@ type LoadResult struct {
 	Errors       []error      // Validation or test errors
 }
 
+// TestSummary contains statistics about test execution
+type TestSummary struct {
+	Total  int // Total number of tests
+	Passed int // Number of tests that passed
+	Failed int // Number of tests that failed
+	Errors int // Number of tests that had execution errors
+}
+
+// GetTestSummary returns statistics about test execution
+func (r *LoadResult) GetTestSummary() TestSummary {
+	summary := TestSummary{Total: len(r.TestResults)}
+	for _, tr := range r.TestResults {
+		if tr.Error != nil {
+			summary.Errors++
+		} else if tr.Passed {
+			summary.Passed++
+		} else {
+			summary.Failed++
+		}
+	}
+	return summary
+}
+
+// GetFailedTests returns only the tests that failed
+func (r *LoadResult) GetFailedTests() []TestResult {
+	failed := make([]TestResult, 0)
+	for _, tr := range r.TestResults {
+		if !tr.Passed || tr.Error != nil {
+			failed = append(failed, tr)
+		}
+	}
+	return failed
+}
+
+// FormatTestResult returns a human-readable string for a single test result
+func (tr *TestResult) FormatTestResult() string {
+	if tr.Error != nil {
+		return fmt.Sprintf("[ERROR] %s - %s: %v", tr.RuleID, tr.TestName, tr.Error)
+	}
+	status := "PASS"
+	if !tr.Passed {
+		status = "FAIL"
+	}
+	return fmt.Sprintf("[%s] %s - %s (expected: %v, actual: %v)", status, tr.RuleID, tr.TestName, tr.Expected, tr.Actual)
+}
+
+// FormatTestSummary returns a human-readable summary of test results
+func (s *TestSummary) FormatTestSummary() string {
+	if s.Total == 0 {
+		return "No tests executed"
+	}
+	return fmt.Sprintf("Tests: %d total, %d passed, %d failed, %d errors", s.Total, s.Passed, s.Failed, s.Errors)
+}
+
 type RuleApi struct {
 	ctx *types.AppContext
 }
@@ -287,6 +341,12 @@ func (repo *RuleEngineRepo) LoadRulesFromFile(path string, opts LoadOptions) (*L
 	}
 
 	return repo.LoadRules(f, opts)
+}
+
+// LoadRulesFromString is a convenience wrapper for LoadRules that loads from a string
+func (repo *RuleEngineRepo) LoadRulesFromString(content string, opts LoadOptions) (*LoadResult, error) {
+	reader := strings.NewReader(content)
+	return repo.LoadRules(reader, opts)
 }
 
 // runAllTests executes test cases for all rules and returns test results

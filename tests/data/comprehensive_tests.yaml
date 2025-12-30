@@ -1,0 +1,234 @@
+- metadata:
+    id: fraud-detection
+    description: Detect potentially fraudulent transactions
+    tags: [fraud, security, finance]
+  expression: transaction.amount > 1000 && (transaction.country != user.country || transaction.velocity > 5)
+  tests:
+    - name: high amount foreign transaction
+      event:
+        transaction:
+          amount: 1500
+          country: UK
+          velocity: 2
+        user:
+          country: US
+      expect: true
+    - name: high amount high velocity
+      event:
+        transaction:
+          amount: 1500
+          country: US
+          velocity: 10
+        user:
+          country: US
+      expect: true
+    - name: low amount foreign transaction
+      event:
+        transaction:
+          amount: 500
+          country: UK
+          velocity: 2
+        user:
+          country: US
+      expect: false
+    - name: high amount same country low velocity
+      event:
+        transaction:
+          amount: 1500
+          country: US
+          velocity: 2
+        user:
+          country: US
+      expect: false
+
+- metadata:
+    id: premium-user-eligibility
+    description: Check if user qualifies for premium features
+    tags: [user, premium, eligibility]
+  expression: user.age >= 18 && user.account_age_days >= 30 && user.verified == true
+  tests:
+    - name: eligible adult verified user
+      event:
+        user:
+          age: 25
+          account_age_days: 60
+          verified: true
+      expect: true
+    - name: underage user
+      event:
+        user:
+          age: 16
+          account_age_days: 60
+          verified: true
+      expect: false
+    - name: new account
+      event:
+        user:
+          age: 25
+          account_age_days: 15
+          verified: true
+      expect: false
+    - name: unverified user
+      event:
+        user:
+          age: 25
+          account_age_days: 60
+          verified: false
+      expect: false
+
+- metadata:
+    id: bulk-order-discount
+    description: Apply discount for bulk orders
+    tags: [pricing, discount, order]
+  expression: order.quantity >= 10 && order.total_amount >= 500
+  tests:
+    - name: bulk order qualifies
+      event:
+        order:
+          quantity: 15
+          total_amount: 750
+      expect: true
+    - name: high quantity but low amount
+      event:
+        order:
+          quantity: 15
+          total_amount: 300
+      expect: false
+    - name: high amount but low quantity
+      event:
+        order:
+          quantity: 5
+          total_amount: 750
+      expect: false
+    - name: neither condition met
+      event:
+        order:
+          quantity: 5
+          total_amount: 300
+      expect: false
+
+- metadata:
+    id: string-pattern-matching
+    description: Test string matching functions
+    tags: [string, pattern, validation]
+  expression: regexpMatch("^[A-Z]{2}[0-9]{4}$", code) && (category == "electronics" || category == "computers")
+  tests:
+    - name: valid code and category
+      event:
+        code: AB1234
+        category: electronics
+      expect: true
+    - name: valid code alternate category
+      event:
+        code: XY9999
+        category: computers
+      expect: true
+    - name: invalid code format
+      event:
+        code: ABC123
+        category: electronics
+      expect: false
+    - name: invalid category
+      event:
+        code: AB1234
+        category: clothing
+      expect: false
+
+- metadata:
+    id: nested-array-quantifier
+    description: Test quantifier with nested conditions
+    tags: [quantifier, array, complex]
+  expression: forAll("items", "item", item.price > 0 && item.quantity > 0)
+  tests:
+    - name: all items valid
+      event:
+        items:
+          - price: 10
+            quantity: 2
+          - price: 20
+            quantity: 1
+          - price: 5
+            quantity: 5
+      expect: true
+    - name: one item has zero price
+      event:
+        items:
+          - price: 10
+            quantity: 2
+          - price: 0
+            quantity: 1
+          - price: 5
+            quantity: 5
+      expect: false
+    - name: one item has zero quantity
+      event:
+        items:
+          - price: 10
+            quantity: 2
+          - price: 20
+            quantity: 0
+          - price: 5
+            quantity: 5
+      expect: false
+    - name: empty array
+      event:
+        items: []
+      expect: false
+
+- metadata:
+    id: null-handling
+    description: Test null and missing field handling
+    tags: [null, missing, edge-case]
+  expression: user.status == "active" && user.balance > 0
+  tests:
+    - name: active user with balance
+      event:
+        user:
+          status: active
+          balance: 100
+      expect: true
+    - name: inactive user
+      event:
+        user:
+          status: inactive
+          balance: 100
+      expect: false
+    - name: missing status field
+      event:
+        user:
+          balance: 100
+      expect: false
+    - name: null balance
+      event:
+        user:
+          status: active
+          balance: null
+      expect: false
+
+- metadata:
+    id: complex-arithmetic
+    description: Test complex arithmetic expressions
+    tags: [arithmetic, math, calculation]
+  expression: (subtotal + tax) * discount_rate <= 1000 && line_items >= 3
+  tests:
+    - name: within limit with discount
+      event:
+        subtotal: 800
+        tax: 80
+        discount_rate: 0.9
+        line_items: 5
+      expect: true
+    - name: exceeds limit
+      event:
+        subtotal: 900
+        tax: 150
+        discount_rate: 1.0
+        line_items: 5
+      expect: false
+    - name: too few items
+      event:
+        subtotal: 800
+        tax: 80
+        discount_rate: 0.9
+        line_items: 2
+      expect: false

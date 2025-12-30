@@ -1178,6 +1178,17 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.CondFactory.NewStringOperand(unquotedStr)
 		}
 	case *ast.Ident:
+		// Handle boolean literals
+		if n.Name == "true" {
+			return repo.CondFactory.NewBooleanOperand(true)
+		}
+		if n.Name == "false" {
+			return repo.CondFactory.NewBooleanOperand(false)
+		}
+		// Handle null literal
+		if n.Name == "null" {
+			return condition.NewNullOperand(nil)
+		}
 		return repo.CondFactory.NewSelOperand(nil, n.Name)
 	case *ast.SelectorExpr:
 		x := repo.preprocessAstExpr(n.X, scope)
@@ -1453,6 +1464,10 @@ func funcRegexpMatch(repo *CompareCondRepo, n *ast.CallExpr, scope *ForEachScope
 			kind := arg.GetKind()
 			if kind == condition.ErrorOperandKind {
 				return arg
+			}
+			// Handle null values - return false instead of panicking
+			if kind == condition.NullOperandKind {
+				return condition.NewBooleanOperand(false)
 			}
 			argString := string(arg.Convert(condition.StringOperandKind).(condition.StringOperand))
 			result := condition.NewBooleanOperand(re.MatchString(argString))

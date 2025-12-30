@@ -615,7 +615,7 @@ func (v BooleanOperand) GetHash() uint64 {
 }
 
 func (v BooleanOperand) Equals(o immutable.SetElement) bool {
-	return v == o.(BooleanOperand)
+	return o.(Operand).GetKind() == BooleanOperandKind && v == o.(BooleanOperand)
 }
 
 func (v BooleanOperand) Greater(o Operand) bool {

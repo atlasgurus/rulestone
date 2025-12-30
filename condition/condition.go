@@ -937,9 +937,12 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 	case nil:
 		return NewNullOperand(nil)
 	case int:
-		return NewIntOperand(int64(n))
+		// Convert int to float64 for consistency with JSON decoding and rule parser behavior
+		// All numeric literals in rules are parsed as FloatOperand, so events should match
+		return NewFloatOperand(float64(n))
 	case int64:
-		return NewIntOperand(n)
+		// Convert int64 to float64 for consistency with JSON decoding and rule parser behavior
+		return NewFloatOperand(float64(n))
 	case string:
 		return NewStringOperand(n)
 	case float64:

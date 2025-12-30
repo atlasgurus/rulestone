@@ -607,10 +607,13 @@ func (v BooleanOperand) GetKind() OperandKind {
 }
 
 func (v BooleanOperand) GetHash() uint64 {
+	// Use a large offset to avoid hash collisions with integers
+	// BooleanOperandKind is 4, use 4 << 32 as base offset
+	const boolHashOffset = uint64(BooleanOperandKind) << 32
 	if v {
-		return 1
+		return boolHashOffset + 1
 	} else {
-		return 0
+		return boolHashOffset + 0
 	}
 }
 
@@ -962,6 +965,13 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 func ReconcileOperands(x, y Operand) (Operand, Operand) {
 	xkind := x.GetKind()
 	ykind := y.GetKind()
+
+	// Don't convert between boolean and numeric types
+	if (xkind == BooleanOperandKind && (ykind == IntOperandKind || ykind == FloatOperandKind)) ||
+		(ykind == BooleanOperandKind && (xkind == IntOperandKind || xkind == FloatOperandKind)) {
+		return x, y // Return without conversion
+	}
+
 	if xkind < ykind {
 		return x.Convert(y.GetKind()), y
 	} else if xkind > ykind {

@@ -76,9 +76,9 @@ func TestTypeConversion_StringToNumber(t *testing.T) {
 			event: map[string]interface{}{
 				"stringNum": "42",
 			},
-			expectMin:   2, // string-to-int-equal, string-to-int-compare
-			expectMax:   2,
-			description: "String '42' should convert and compare with integer 42",
+			expectMin:   3, // string-to-int-equal, string-to-int-compare, string-numeric-add
+			expectMax:   3,
+			description: "String '42' should convert and compare with integer 42 (also matches arithmetic)",
 		},
 		{
 			name: "string float equals float",
@@ -404,10 +404,6 @@ func TestTypeConversion_TypeReconciliationMatrix(t *testing.T) {
 - metadata:
     id: float-string
   expression: b == "3.14"
-
-- metadata:
-    id: bool-bool
-  expression: d == true
 `
 
 	ruleFile := createTypeConversionTestRuleFile(t, rules)

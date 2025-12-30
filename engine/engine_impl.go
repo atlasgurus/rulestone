@@ -212,6 +212,14 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 			// Convert toward the higher kind, e.g. int -> float -> bool -> string
 			X, Y = condition.ReconcileOperands(X, Y)
 
+			// Check for errors after reconciliation
+			if X.GetKind() == condition.ErrorOperandKind {
+				return X
+			}
+			if Y.GetKind() == condition.ErrorOperandKind {
+				return Y
+			}
+
 			switch compOp {
 			case condition.CompareEqualOp:
 				return condition.NewBooleanOperand(X.Equals(Y))
@@ -268,10 +276,33 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 
 	// Create an entry in the categoryMap for each of the consOperandList
 	for _, constOperand := range consOperandList {
+		category := condition.NewIntOperand(int64(scope.Evaluator.GetCategory()))
+
+		// Add the constant itself
 		categoryList, _ := categoryMap.Get(constOperand)
-		categoryMap.Put(
-			constOperand,
-			append(categoryList, condition.NewIntOperand(int64(scope.Evaluator.GetCategory()))))
+		categoryMap.Put(constOperand, append(categoryList, category))
+
+		// Also add type-converted versions for numeric/string interoperability
+		constKind := constOperand.GetKind()
+		if constKind == condition.StringOperandKind {
+			// Try adding int and float versions of string constants
+			intVersion := constOperand.Convert(condition.IntOperandKind)
+			if intVersion.GetKind() != condition.ErrorOperandKind {
+				intList, _ := categoryMap.Get(intVersion)
+				categoryMap.Put(intVersion, append(intList, category))
+			}
+			floatVersion := constOperand.Convert(condition.FloatOperandKind)
+			if floatVersion.GetKind() != condition.ErrorOperandKind {
+				floatList, _ := categoryMap.Get(floatVersion)
+				categoryMap.Put(floatVersion, append(floatList, category))
+			}
+		} else if constKind == condition.IntOperandKind || constKind == condition.FloatOperandKind {
+			// Try adding string version of numeric constants
+			stringVersion := constOperand.Convert(condition.StringOperandKind)
+			stringList, _ := categoryMap.Get(stringVersion)
+			categoryMap.Put(stringVersion, append(stringList, category))
+		}
+		// Note: Boolean types are intentionally excluded
 	}
 
 	if seenCond {
@@ -291,9 +322,34 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 			catList, k := categoryMap.Get(X)
 			if k {
 				return condition.NewListOperand(catList)
-			} else {
-				return condition.IntConst0
 			}
+
+			// Try type conversions for numeric/string comparisons (but NOT boolean)
+			if xKind == condition.StringOperandKind {
+				// Try converting string to int
+				intX := X.Convert(condition.IntOperandKind)
+				if intX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(intX); k {
+						return condition.NewListOperand(catList)
+					}
+				}
+				// Try converting string to float
+				floatX := X.Convert(condition.FloatOperandKind)
+				if floatX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(floatX); k {
+						return condition.NewListOperand(catList)
+					}
+				}
+			} else if xKind == condition.IntOperandKind || xKind == condition.FloatOperandKind {
+				// Try converting number to string (but NOT to/from boolean)
+				stringX := X.Convert(condition.StringOperandKind)
+				if catList, k := categoryMap.Get(stringX); k {
+					return condition.NewListOperand(catList)
+				}
+			}
+			// Note: Boolean types are intentionally excluded from cross-type conversions
+
+			return condition.IntConst0
 		}, varOperand)
 }
 

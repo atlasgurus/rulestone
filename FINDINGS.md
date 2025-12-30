@@ -160,14 +160,48 @@ As of this writing, 14 subtests are still failing:
 3. Consider adding type coercion for int/int64 to float64
 4. Review whether 'contains' operator should be implemented or removed
 
+## Current Status (2025-12-29 Evening)
+
+### Completed ✅
+1. Fixed regexpMatch() and containsAny() syntax across all Phase 2b tests
+2. Updated boolean conversion test expectations
+3. Investigated and resolved int vs float64 root cause
+4. Fixed expressions_complex_test.go - converted all numeric values to float64
+5. Created comprehensive FINDINGS.md documentation
+6. Committed fixes with detailed commit messages
+
+### Test Results After float64 Fix
+
+**expressions_complex_test.go**: 4/8 test suites fully passing
+- ✅ DeepNesting
+- ✅ OperatorPrecedence
+- ✅ PerformanceWithComplexity
+- ✅ EdgeCaseComplexity
+- ⏳ LongExpressions (1/4 subtests pass)
+- ⏳ ParenthesesGrouping (partial)
+- ⏳ RealWorldScenarios (partial)
+- ⏳ NestedQuantifiers (partial)
+
+**Other test files**: Still need float64 conversion
+- operators_arithmetic_test.go
+- quantifiers_forall_test.go
+- quantifiers_forsome_test.go
+- types_conversion_test.go (some events use int)
+- types_null_handling_test.go
+- errors_validation_test.go
+
+### Remaining Work
+
+1. **Apply float64 fix to remaining test files** (~5 files)
+2. **Review error_validation_test.go** - These tests expect validation errors, but engine is permissive by design. May need to adjust expectations.
+3. **Investigate remaining complex expression failures** - Likely due to test expectations not matching engine behavior (not float64 issue)
+4. **Fix null handling test failure** in functions_string_test.go
+5. **Run full test suite** after all fixes
+6. **Update requirements.md** with learnings
+
 ## Next Steps
 
-1. ✅ Fix regexpMatch() and containsAny() syntax
-2. ✅ Update boolean conversion test expectations
-3. ✅ Investigate and resolve int vs float64 issue
-4. ⏳ Fix expressions_complex_test.go numeric types
-5. ⏳ Review error_validation_test.go expectations
-6. ⏳ Fix remaining test failures
-7. ⏳ Run full test suite and verify
-8. ⏳ Update requirements.md with findings
-9. ⏳ Final commit with comprehensive documentation
+The most impactful next action is to systematically apply the float64 fix to all remaining test files. Once that's done, the remaining failures will be limited to:
+- Test expectation mismatches (need review)
+- Potential engine behavior edge cases
+- Error validation test philosophy differences

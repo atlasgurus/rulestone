@@ -19,6 +19,47 @@ import (
 type ExternalRule struct {
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 	Expression string                 `json:"expression"`
+	Tests      []TestCase             `json:"tests,omitempty" yaml:"tests,omitempty"`
+}
+
+// TestCase defines a test case for a rule
+type TestCase struct {
+	Name   string                 `json:"name" yaml:"name"`
+	Event  map[string]interface{} `json:"event" yaml:"event"`
+	Expect bool                   `json:"expect" yaml:"expect"`
+}
+
+// ruleInfo tracks rule information for testing
+type ruleInfo struct {
+	internalID uint
+	externalID string
+	tests      []TestCase
+}
+
+// LoadOptions controls rule loading behavior
+type LoadOptions struct {
+	Validate   bool   // If true, validate expressions during load (default: true)
+	RunTests   bool   // If true, execute test cases (default: true)
+	FileFormat string // "yaml", "json", or "" for auto-detect from file extension
+}
+
+// TestResult contains the result of executing a single test case
+type TestResult struct {
+	RuleID   string                 // Rule ID from metadata
+	TestName string                 // Test case name
+	Passed   bool                   // Whether test passed
+	Expected bool                   // Expected result
+	Actual   bool                   // Actual result
+	Event    map[string]interface{} // Test event data
+	Error    error                  // Error if test execution failed
+}
+
+// LoadResult contains the result of loading rules
+type LoadResult struct {
+	RuleIDs      []uint       // IDs of loaded rules
+	ValidationOK bool         // True if all rules validated successfully
+	TestResults  []TestResult // Results from test execution
+	Errors       []error      // Validation or test errors
 }
 
 type RuleApi struct {
@@ -114,6 +155,174 @@ func (repo *RuleEngineRepo) RegisterRulesFromFile(path string) ([]uint, error) {
 		ruleIds = append(ruleIds, ruleId)
 	}
 	return ruleIds, nil
+}
+
+// LoadRules loads rules from an io.Reader with optional validation and testing
+func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*LoadResult, error) {
+	result := &LoadResult{
+		RuleIDs:      make([]uint, 0),
+		ValidationOK: true,
+		TestResults:  make([]TestResult, 0),
+		Errors:       make([]error, 0),
+	}
+
+	// Parse rules from reader
+	var externalRules []ExternalRule
+	switch strings.ToLower(opts.FileFormat) {
+	case "json":
+		decoder := json.NewDecoder(reader)
+		if err := decoder.Decode(&externalRules); err != nil {
+			return nil, repo.ctx.Errorf("error parsing JSON: %s", err)
+		}
+	case "yaml", "yml", "":
+		// Default to YAML if not specified
+		decoder := yaml.NewDecoder(reader)
+		if err := decoder.Decode(&externalRules); err != nil {
+			return nil, repo.ctx.Errorf("error parsing YAML: %s", err)
+		}
+	default:
+		return nil, repo.ctx.Errorf("unsupported file format: %s", opts.FileFormat)
+	}
+
+	// Track rule ID mapping for testing
+	ruleInfos := make([]ruleInfo, 0, len(externalRules))
+
+	// Process each rule
+	for _, extRule := range externalRules {
+		// Get rule ID from metadata (if available)
+		ruleID := ""
+		if id, ok := extRule.Metadata["id"]; ok {
+			if idStr, ok := id.(string); ok {
+				ruleID = idStr
+			}
+		}
+
+		// Convert to internal rule (includes expression parsing if Validate=false)
+		var internalRule *InternalRule
+		var err error
+
+		if opts.Validate {
+			// Validate by parsing expression
+			internalRule, err = externalToInternalRule(&extRule)
+			if err != nil {
+				result.ValidationOK = false
+				result.Errors = append(result.Errors, repo.ctx.Errorf("rule %s: validation failed: %v", ruleID, err))
+				continue // Skip this rule
+			}
+		} else {
+			// Skip validation, just store expression
+			internalRule, err = externalToInternalRule(&extRule)
+			if err != nil {
+				// Even without validation, basic parsing errors are fatal
+				return nil, repo.ctx.Errorf("rule %s: failed to parse: %v", ruleID, err)
+			}
+		}
+
+		// Register the rule
+		ruleInternalID := repo.Register(internalRule)
+		result.RuleIDs = append(result.RuleIDs, ruleInternalID)
+
+		// Save test info for later execution
+		if opts.RunTests && len(extRule.Tests) > 0 {
+			ruleInfos = append(ruleInfos, ruleInfo{
+				internalID: ruleInternalID,
+				externalID: ruleID,
+				tests:      extRule.Tests,
+			})
+		}
+	}
+
+	// Validate by attempting to create engine if requested
+	if opts.Validate {
+		_, err := NewRuleEngine(repo)
+		if err != nil {
+			result.ValidationOK = false
+			result.Errors = append(result.Errors, repo.ctx.Errorf("engine creation failed: %v", err))
+		}
+	}
+
+	// Run tests if requested (create engine once for all tests)
+	if opts.RunTests && len(ruleInfos) > 0 {
+		testResults := repo.runAllTests(ruleInfos)
+		result.TestResults = append(result.TestResults, testResults...)
+	}
+
+	return result, nil
+}
+
+// LoadRulesFromFile is a convenience wrapper for LoadRules that loads from a file
+func (repo *RuleEngineRepo) LoadRulesFromFile(path string, opts LoadOptions) (*LoadResult, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Auto-detect file format from extension if not specified
+	if opts.FileFormat == "" {
+		ext := filepath.Ext(path)
+		if len(ext) > 0 {
+			opts.FileFormat = ext[1:] // Remove the dot
+		}
+	}
+
+	return repo.LoadRules(f, opts)
+}
+
+// runAllTests executes test cases for all rules and returns test results
+func (repo *RuleEngineRepo) runAllTests(ruleInfos []ruleInfo) []TestResult {
+	results := make([]TestResult, 0)
+
+	// Create engine to test all rules
+	// We need to do this because rules aren't ready to match until engine is created
+	tempEngine, err := NewRuleEngine(repo)
+	if err != nil {
+		// If engine creation fails, all tests fail
+		for _, ruleInfo := range ruleInfos {
+			for _, test := range ruleInfo.tests {
+				results = append(results, TestResult{
+					RuleID:   ruleInfo.externalID,
+					TestName: test.Name,
+					Passed:   false,
+					Expected: test.Expect,
+					Actual:   false,
+					Event:    test.Event,
+					Error:    repo.ctx.Errorf("failed to create engine: %v", err),
+				})
+			}
+		}
+		return results
+	}
+
+	// Run test cases for each rule
+	for _, ruleInfo := range ruleInfos {
+		for _, test := range ruleInfo.tests {
+			matches := tempEngine.MatchEvent(test.Event)
+
+			// Check if this specific rule matched
+			ruleMatched := false
+			for _, matchedRuleID := range matches {
+				if uint(matchedRuleID) == ruleInfo.internalID {
+					ruleMatched = true
+					break
+				}
+			}
+
+			passed := (ruleMatched == test.Expect)
+
+			results = append(results, TestResult{
+				RuleID:   ruleInfo.externalID,
+				TestName: test.Name,
+				Passed:   passed,
+				Expected: test.Expect,
+				Actual:   ruleMatched,
+				Event:    test.Event,
+				Error:    nil,
+			})
+		}
+	}
+
+	return results
 }
 
 func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, error) {

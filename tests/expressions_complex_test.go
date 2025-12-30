@@ -70,11 +70,11 @@ func TestComplexExpressions_DeepNesting(t *testing.T) {
 		{
 			name: "deep arithmetic nesting",
 			event: map[string]interface{}{
-				"a": 100,
-				"b": 10,
-				"c": 2,
-				"d": 20,
-				"e": 4,
+				"a": float64(100),
+				"b": float64(10),
+				"c": float64(2),
+				"d": float64(20),
+				"e": float64(4),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -83,8 +83,8 @@ func TestComplexExpressions_DeepNesting(t *testing.T) {
 		{
 			name: "deep logical nesting - all true",
 			event: map[string]interface{}{
-				"a": 1, "b": 2, "c": 3, "d": 4,
-				"e": 5, "f": 6, "g": 7, "h": 8,
+				"a": float64(1), "b": float64(2), "c": float64(3), "d": float64(4),
+				"e": float64(5), "f": float64(6), "g": float64(7), "h": float64(8),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -93,8 +93,8 @@ func TestComplexExpressions_DeepNesting(t *testing.T) {
 		{
 			name: "mixed deep nesting",
 			event: map[string]interface{}{
-				"x": 15, "y": 15, "z": 35, "w": 35,
-				"a": 30, "b": 25, "c": 5, "d": 3,
+				"x": float64(15), "y": float64(15), "z": float64(35), "w": float64(35),
+				"a": float64(30), "b": float64(25), "c": float64(5), "d": float64(3),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -103,8 +103,8 @@ func TestComplexExpressions_DeepNesting(t *testing.T) {
 		{
 			name: "nested arithmetic with result",
 			event: map[string]interface{}{
-				"a": 10, "b": 5, "c": 20, "d": 10, "e": 2,
-				"result": 35, // 10 + (5 * (20 - (10 / 2))) = 10 + (5 * 15) = 85
+				"a": float64(10), "b": float64(5), "c": float64(20), "d": float64(10), "e": float64(2),
+				"result": float64(35), // 10 + (5 * (20 - (10 / 2))) = 10 + (5 * 15) = 85
 			},
 			expectMin:   0,
 			expectMax:   1,
@@ -167,8 +167,8 @@ func TestComplexExpressions_LongExpressions(t *testing.T) {
 		{
 			name: "long arithmetic chain",
 			event: map[string]interface{}{
-				"a": 1, "b": 2, "c": 3, "d": 4, "e": 5,
-				"f": 6, "g": 7, "h": 8, "i": 9, "j": 10,
+				"a": float64(1), "b": float64(2), "c": float64(3), "d": float64(4), "e": float64(5),
+				"f": float64(6), "g": float64(7), "h": float64(8), "i": float64(9), "j": float64(10),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -177,8 +177,8 @@ func TestComplexExpressions_LongExpressions(t *testing.T) {
 		{
 			name: "long logical chain",
 			event: map[string]interface{}{
-				"a": 1, "b": 2, "c": 3, "d": 4,
-				"e": 5, "f": 6, "g": 7, "h": 8,
+				"a": float64(1), "b": float64(2), "c": float64(3), "d": float64(4),
+				"e": float64(5), "f": float64(6), "g": float64(7), "h": float64(8),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -187,8 +187,8 @@ func TestComplexExpressions_LongExpressions(t *testing.T) {
 		{
 			name: "long comparison chain",
 			event: map[string]interface{}{
-				"a": 1, "b": 2, "c": 3, "d": 4,
-				"e": 5, "f": 6, "g": 7, "h": 8,
+				"a": float64(1), "b": float64(2), "c": float64(3), "d": float64(4),
+				"e": float64(5), "f": float64(6), "g": float64(7), "h": float64(8),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -197,9 +197,9 @@ func TestComplexExpressions_LongExpressions(t *testing.T) {
 		{
 			name: "long mixed operations chain",
 			event: map[string]interface{}{
-				"a": 3, "b": 7, "c": 4, "d": 5,
-				"e": 10, "f": 5, "g": 8, "h": 4,
-				"i": 20, "j": 10,
+				"a": float64(3), "b": float64(7), "c": float64(4), "d": float64(5),
+				"e": float64(10), "f": float64(5), "g": float64(8), "h": float64(4),
+				"i": float64(20), "j": float64(10),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -270,9 +270,9 @@ func TestComplexExpressions_OperatorPrecedence(t *testing.T) {
 		{
 			name: "multiplication before addition",
 			event: map[string]interface{}{
-				"a": 1,
-				"b": 2,
-				"c": 5,
+				"a": float64(1),
+				"b": float64(2),
+				"c": float64(5),
 			},
 			expectMin:   2, // Both arithmetic-precedence rules
 			expectMax:   2,
@@ -281,10 +281,10 @@ func TestComplexExpressions_OperatorPrecedence(t *testing.T) {
 		{
 			name: "arithmetic in comparison",
 			event: map[string]interface{}{
-				"a": 10,
-				"b": 5,
-				"c": 2,
-				"d": 7,
+				"a": float64(10),
+				"b": float64(5),
+				"c": float64(2),
+				"d": float64(7),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -293,11 +293,11 @@ func TestComplexExpressions_OperatorPrecedence(t *testing.T) {
 		{
 			name: "comparison with logical",
 			event: map[string]interface{}{
-				"a": 2,
-				"b": 3,
-				"c": 6,
-				"d": 10,
-				"e": 5,
+				"a": float64(2),
+				"b": float64(3),
+				"c": float64(6),
+				"d": float64(10),
+				"e": float64(5),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -306,9 +306,9 @@ func TestComplexExpressions_OperatorPrecedence(t *testing.T) {
 		{
 			name: "AND before OR",
 			event: map[string]interface{}{
-				"a": 1,
-				"b": 99,
-				"c": 3,
+				"a": float64(1),
+				"b": float64(99),
+				"c": float64(3),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -375,9 +375,9 @@ func TestComplexExpressions_ParenthesesGrouping(t *testing.T) {
 		{
 			name: "parentheses change arithmetic result",
 			event: map[string]interface{}{
-				"a": 5,
-				"b": 5,
-				"c": 3,
+				"a": float64(5),
+				"b": float64(5),
+				"c": float64(3),
 			},
 			expectMin:   1, // grouped-arithmetic: (5+5)*3 = 30
 			expectMax:   1, // ungrouped would be: 5+5*3 = 20
@@ -386,9 +386,9 @@ func TestComplexExpressions_ParenthesesGrouping(t *testing.T) {
 		{
 			name: "parentheses change logical result",
 			event: map[string]interface{}{
-				"a": 99,
-				"b": 2,
-				"c": 3,
+				"a": float64(99),
+				"b": float64(2),
+				"c": float64(3),
 			},
 			expectMin:   1, // grouped-logical matches
 			expectMax:   1,
@@ -397,12 +397,12 @@ func TestComplexExpressions_ParenthesesGrouping(t *testing.T) {
 		{
 			name: "complex grouping",
 			event: map[string]interface{}{
-				"a":      10,
-				"b":      5,
-				"c":      20,
-				"d":      10,
-				"e":      3,
-				"result": 50,
+				"a":      float64(10),
+				"b":      float64(5),
+				"c":      float64(20),
+				"d":      float64(10),
+				"e":      float64(3),
+				"result": float64(50),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -471,8 +471,8 @@ func TestComplexExpressions_RealWorldScenarios(t *testing.T) {
 			event: map[string]interface{}{
 				"amount":           1500.0,
 				"country":          "RU",
-				"transactionCount": 5,
-				"accountAge":       100,
+				"transactionCount": float64(5),
+				"accountAge":       float64(100),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -482,10 +482,10 @@ func TestComplexExpressions_RealWorldScenarios(t *testing.T) {
 			name: "pricing logic - valid order",
 			event: map[string]interface{}{
 				"basePrice":         100.0,
-				"quantity":          10,
+				"quantity":          float64(10),
 				"discount":          20.0,
 				"minimumOrderValue": 700.0,
-				"inventory":         15,
+				"inventory":         float64(15),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -497,7 +497,7 @@ func TestComplexExpressions_RealWorldScenarios(t *testing.T) {
 				"role":          "admin",
 				"department":    "sales",
 				"isActive":      true,
-				"loginAttempts": 2,
+				"loginAttempts": float64(2),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -508,7 +508,7 @@ func TestComplexExpressions_RealWorldScenarios(t *testing.T) {
 			event: map[string]interface{}{
 				"userRating":      4.5,
 				"categoryMatch":   true,
-				"popularityScore": 50,
+				"popularityScore": float64(50),
 				"priceRange":      "expensive",
 			},
 			expectMin:   1,
@@ -521,7 +521,7 @@ func TestComplexExpressions_RealWorldScenarios(t *testing.T) {
 				"cpuUsage":      85.0,
 				"memoryUsage":   75.0,
 				"errorRate":     0.01,
-				"responseTime":  500,
+				"responseTime":  float64(500),
 				"criticalError": false,
 			},
 			expectMin:   1,
@@ -586,9 +586,9 @@ func TestComplexExpressions_NestedQuantifiers(t *testing.T) {
 			name: "nested forAll with complex condition",
 			event: map[string]interface{}{
 				"orders": []interface{}{
-					map[string]interface{}{"total": 150, "status": "completed"},
-					map[string]interface{}{"total": 200, "status": "completed"},
-					map[string]interface{}{"total": 120, "status": "completed"},
+					map[string]interface{}{"total": float64(150), "status": "completed"},
+					map[string]interface{}{"total": float64(200), "status": "completed"},
+					map[string]interface{}{"total": float64(120), "status": "completed"},
 				},
 			},
 			expectMin:   1,
@@ -599,8 +599,8 @@ func TestComplexExpressions_NestedQuantifiers(t *testing.T) {
 			name: "quantifier with arithmetic",
 			event: map[string]interface{}{
 				"items": []interface{}{
-					map[string]interface{}{"price": 100, "quantity": 3},
-					map[string]interface{}{"price": 50, "quantity": 12},
+					map[string]interface{}{"price": float64(100), "quantity": float64(3)},
+					map[string]interface{}{"price": float64(50), "quantity": float64(12)},
 				},
 			},
 			expectMin:   1,
@@ -614,7 +614,7 @@ func TestComplexExpressions_NestedQuantifiers(t *testing.T) {
 					map[string]interface{}{"inStock": true},
 					map[string]interface{}{"inStock": true},
 				},
-				"totalValue":  1200,
+				"totalValue":  float64(1200),
 				"vipCustomer": false,
 			},
 			expectMin:   1,
@@ -625,10 +625,10 @@ func TestComplexExpressions_NestedQuantifiers(t *testing.T) {
 			name: "complex quantifier condition",
 			event: map[string]interface{}{
 				"transactions": []interface{}{
-					map[string]interface{}{"amount": 500, "currency": "EUR", "flagged": false},
-					map[string]interface{}{"amount": 1500, "currency": "USD", "flagged": false},
+					map[string]interface{}{"amount": float64(500), "currency": "EUR", "flagged": false},
+					map[string]interface{}{"amount": float64(1500), "currency": "USD", "flagged": false},
 				},
-				"threshold": 1000,
+				"threshold": float64(1000),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -670,15 +670,15 @@ func TestComplexExpressions_PerformanceWithComplexity(t *testing.T) {
 	}
 
 	event := map[string]interface{}{
-		"a": 100, "b": 5, "c": 10, "d": 50, "e": 2,
-		"f": 3, "g": 7, "h": 15, "i": 10,
-		"j": 42, "k": 42, "l": 1, "m": 2,
-		"n": 100, "o": 50, "p": 75, "q": 80,
-		"threshold1": 100,
-		"threshold2": 50,
+		"a": float64(100), "b": float64(5), "c": float64(10), "d": float64(50), "e": float64(2),
+		"f": float64(3), "g": float64(7), "h": float64(15), "i": float64(10),
+		"j": float64(42), "k": float64(42), "l": float64(1), "m": float64(2),
+		"n": float64(100), "o": float64(50), "p": float64(75), "q": float64(80),
+		"threshold1": float64(100),
+		"threshold2": float64(50),
 		"items": []interface{}{
-			map[string]interface{}{"value": 150},
-			map[string]interface{}{"value": 200},
+			map[string]interface{}{"value": float64(150)},
+			map[string]interface{}{"value": float64(200)},
 		},
 	}
 
@@ -729,8 +729,8 @@ func TestComplexExpressions_EdgeCaseComplexity(t *testing.T) {
 		{
 			name: "empty array in complex expression",
 			event: map[string]interface{}{
-				"a":     5,
-				"b":     1,
+				"a":     float64(5),
+				"b":     float64(1),
 				"items": []interface{}{},
 			},
 			expectMin:   1,
@@ -740,10 +740,10 @@ func TestComplexExpressions_EdgeCaseComplexity(t *testing.T) {
 		{
 			name: "null in complex expression",
 			event: map[string]interface{}{
-				"a": 50,
-				"b": 60,
+				"a": float64(50),
+				"b": float64(60),
 				"c": nil,
-				"d": 42,
+				"d": float64(42),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -752,8 +752,8 @@ func TestComplexExpressions_EdgeCaseComplexity(t *testing.T) {
 		{
 			name: "zero division protection",
 			event: map[string]interface{}{
-				"divisor":  5,
-				"dividend": 60,
+				"divisor":  float64(5),
+				"dividend": float64(60),
 			},
 			expectMin:   1,
 			expectMax:   1,
@@ -762,8 +762,8 @@ func TestComplexExpressions_EdgeCaseComplexity(t *testing.T) {
 		{
 			name: "zero division blocked",
 			event: map[string]interface{}{
-				"divisor":  0,
-				"dividend": 60,
+				"divisor":  float64(0),
+				"dividend": float64(60),
 			},
 			expectMin:   0,
 			expectMax:   0,

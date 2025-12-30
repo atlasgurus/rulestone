@@ -59,7 +59,7 @@
 				
 				<option value="file1">github.com/atlasgurus/rulestone/cateng/category_engine.go (90.7%)</option>
 				
-				<option value="file2">github.com/atlasgurus/rulestone/condition/condition.go (53.0%)</option>
+				<option value="file2">github.com/atlasgurus/rulestone/condition/condition.go (54.3%)</option>
 				
 				<option value="file3">github.com/atlasgurus/rulestone/condition/condition_utils.go (0.0%)</option>
 				
@@ -69,7 +69,7 @@
 				
 				<option value="file6">github.com/atlasgurus/rulestone/engine/engine_api.go (76.5%)</option>
 				
-				<option value="file7">github.com/atlasgurus/rulestone/engine/engine_impl.go (64.3%)</option>
+				<option value="file7">github.com/atlasgurus/rulestone/engine/engine_impl.go (64.7%)</option>
 				
 				<option value="file8">github.com/atlasgurus/rulestone/engine/lookups.go (59.1%)</option>
 				
@@ -1422,7 +1422,7 @@ func (v StringOperand) Convert(to OperandKind) Operand <span class="cov8" title=
                 return NewBooleanOperand(v != "true")</span>
         case StringOperandKind:<span class="cov8" title="1">
                 return v</span>
-        case NullOperandKind:<span class="cov0" title="0">
+        case NullOperandKind:<span class="cov8" title="1">
                 return NewNullOperand(nil)</span>
         default:<span class="cov0" title="0">
                 panic(fmt.Errorf("unexpected conversion to %d ", to))</span>
@@ -1747,7 +1747,7 @@ func (v *IndexOperand) GetHash() uint64 <span class="cov8" title="1">{
         return v.Hash
 }</span>
 
-func (v *IndexOperand) Equals(o immutable.SetElement) bool <span class="cov8" title="1">{
+func (v *IndexOperand) Equals(o immutable.SetElement) bool <span class="cov0" title="0">{
         return v.Hash == o.GetHash()
         /*
                 return o.GetKind() == AddressOperandKind &amp;&amp;
@@ -1829,7 +1829,7 @@ func (v NullOperand) GetHash() uint64 <span class="cov0" title="0">{
         return 0
 }</span>
 
-func (v NullOperand) Equals(o immutable.SetElement) bool <span class="cov0" title="0">{
+func (v NullOperand) Equals(o immutable.SetElement) bool <span class="cov8" title="1">{
         return false
 }</span>
 
@@ -1892,7 +1892,7 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand <span cla
                 return NewStringOperand(n)</span>
         case float64:<span class="cov8" title="1">
                 return NewFloatOperand(n)</span>
-        case bool:<span class="cov0" title="0">
+        case bool:<span class="cov8" title="1">
                 return NewBooleanOperand(n)</span>
         case map[string]interface{}:<span class="cov0" title="0">
                 return NewErrorOperand(ctx.Errorf("scalar operand expected got map: %v", v))</span>
@@ -1909,7 +1909,7 @@ func ReconcileOperands(x, y Operand) (Operand, Operand) <span class="cov8" title
         ykind := y.GetKind()
         if xkind &lt; ykind </span><span class="cov8" title="1">{
                 return x.Convert(y.GetKind()), y
-        }</span> else<span class="cov8" title="1"> if xkind &gt; ykind </span><span class="cov0" title="0">{
+        }</span> else<span class="cov8" title="1"> if xkind &gt; ykind </span><span class="cov8" title="1">{
                 return x, y.Convert(x.GetKind())
         }</span> else<span class="cov8" title="1"> {
                 return x, y
@@ -2551,7 +2551,7 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
                                 return condition.NewBooleanOperand(!X.Equals(Y))</span>
                         case condition.CompareGreaterOp:<span class="cov8" title="1">
                                 return condition.NewBooleanOperand(X.Greater(Y))</span>
-                        case condition.CompareGreaterOrEqualOp:<span class="cov0" title="0">
+                        case condition.CompareGreaterOrEqualOp:<span class="cov8" title="1">
                                 return condition.NewBooleanOperand(!Y.Greater(X))</span>
                         case condition.CompareLessOp:<span class="cov8" title="1">
                                 return condition.NewBooleanOperand(Y.Greater(X))</span>
@@ -3440,7 +3440,7 @@ func (repo *CompareCondRepo) processCompareBinaryExpr(n *ast.BinaryExpr, negate 
                         compareOp = condition.CompareEqualOp</span>
                 case token.LEQ:<span class="cov0" title="0">
                         compareOp = condition.CompareLessOrEqualOp</span>
-                case token.GEQ:<span class="cov0" title="0">
+                case token.GEQ:<span class="cov8" title="1">
                         compareOp = condition.CompareGreaterOrEqualOp</span>
                 default:<span class="cov0" title="0">
                         return condition.NewErrorCondition(
@@ -3638,7 +3638,7 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
                         return repo.genEvalForCompareOperands(condition.CompareNotEqualOp, xOperand, yOperand)</span>
                 case token.LEQ:<span class="cov0" title="0">
                         return repo.genEvalForCompareOperands(condition.CompareLessOrEqualOp, xOperand, yOperand)</span>
-                case token.GEQ:<span class="cov0" title="0">
+                case token.GEQ:<span class="cov8" title="1">
                         return repo.genEvalForCompareOperands(condition.CompareGreaterOrEqualOp, xOperand, yOperand)</span>
                 case token.LAND:<span class="cov8" title="1">
                         return repo.genEvalForLogicalOp(token.LAND, xOperand, yOperand)</span>

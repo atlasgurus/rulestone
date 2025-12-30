@@ -1,18 +1,25 @@
-# Rulestone #
+# Rulestone
 
 ![Go Tests](https://github.com/atlasgurus/rulestone/actions/workflows/tests.yml/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/atlasgurus/rulestone)](https://goreportcard.com/report/github.com/atlasgurus/rulestone)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/atlasgurus/rulestone/blob/main/LICENSE)
 
-Lightweight and fast [rule engine](https://en.wikipedia.org/wiki/Business_rules_engine) written in Go, with API for
-other languages:
+Lightweight and fast [rule engine](https://en.wikipedia.org/wiki/Business_rules_engine) written in Go, with API for other languages:
 * Go (this!)
 * [Java](https://github.com/atlasgurus/rulestone-java)
 
-With Rulestone you can define thousands of rules and then process tens of thousands events/objects per second getting
-the matching rules for each object.
+With Rulestone you can define thousands of rules and then process tens of thousands events/objects per second, getting the matching rules for each object.
 
-# Installation
+## Features
+
+- **Fast**: Process tens of thousands of events per second
+- **Flexible**: Load rules from files, databases, S3, HTTP, or any io.Reader
+- **Validated**: Optional expression validation during load
+- **Tested**: Built-in test cases in rule metadata
+- **Data-Driven**: Self-documenting rules with inline tests
+- **Production-Ready**: Skip validation for trusted sources in production
+
+## Installation
 
 Install the package:
 
@@ -20,114 +27,395 @@ Install the package:
 go get github.com/atlasgurus/rulestone
 ```
 
-# Usage
+## Quick Start
 
-## Go
-
-The following Go example shows how to load a rule from file and match an object against this rule:
+### Basic Usage
 
 ```go
-    package main
+package main
 
-    import (
-        "fmt"
-        "github.com/atlasgurus/rulestone/utils"
-        "github.com/atlasgurus/rulestone/engine"
-    )
+import (
+    "fmt"
+    "github.com/atlasgurus/rulestone/engine"
+)
 
-    func Match() {
-        repo := engine.NewRuleEngineRepo()
-        _, err := repo.RegisterRuleFromFile("rule.json")
-        if err != nil {
-            return
-        }
+func main() {
+    // Create repository
+    repo := engine.NewRuleEngineRepo()
 
-        ruleEngine, err := engine.NewRuleEngine(repo)
-        if err != nil {
-            return
-        }
-
-        event, err := utils.ReadEvent("object.json")
-        if err != nil {
-            return
-        }
-
-        matches := ruleEngine.MatchEvent(event)
-
-        for _, ruleId := range matches {
-			// Optionally get matching rules metadata
-            ruleDefinition := ruleEngine.GetRuleDefinition(ruleId)
-            if ruleIdStr, ok := ruleDefinition.Metadata["rule_id"].(string); ok {
-                fmt.Println("Rule matched: ", ruleIdStr)
-            }
-        }
-        // Report all the errors if any
-        if repo.GetAppCtx().NumErrors() > 0 {
-            repo.GetAppCtx().PrintErrors()
-        }
+    // Load rules with validation and testing
+    result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+        Validate:   true,  // Validate expressions
+        RunTests:   true,  // Execute built-in tests
+        FileFormat: "yaml",
+    })
+    if err != nil {
+        panic(err)
     }
 
-    func main() {
-        Match()
+    // Check validation and test results
+    if !result.ValidationOK {
+        for _, err := range result.Errors {
+            fmt.Printf("Validation error: %v\n", err)
+        }
+        return
     }
+
+    summary := result.GetTestSummary()
+    fmt.Printf("%s\n", summary.FormatTestSummary())
+
+    // Create engine
+    ruleEngine, err := engine.NewRuleEngine(repo)
+    if err != nil {
+        panic(err)
+    }
+
+    // Match events
+    event := map[string]interface{}{
+        "name": "Frank",
+        "age":  20,
+    }
+
+    matches := ruleEngine.MatchEvent(event)
+    for _, ruleID := range matches {
+        rule := ruleEngine.GetRuleDefinition(uint(ruleID))
+        if id, ok := rule.Metadata["id"].(string); ok {
+            fmt.Printf("Rule matched: %s\n", id)
+        }
+    }
+}
 ```
 
-The example assumes rule contains the metadata field called `rule_id`.
-See for more Go usage examples in `tests/rule_api_test.go`.
+## Rule Format
 
-## Rules
-
-### Simple rule definition
+### Simple Rule
 
 ```yaml
-metadata:
-  created: "2023-03-29"
-  priority: 10
-  rule_id: "BUSINESS_RULE_1"
-expression: name == "Frank" && age == 20
-
+- metadata:
+    id: simple-rule
+    description: Match specific name and age
+    created: "2023-03-29"
+  expression: name == "Frank" && age == 20
 ```
 
-The rule match if the JSON object has a `name` field with value `Frank` and an `age` field with value `20`.
-The metadata section may store any information linked to the rule, including the rule ID.
-The condition section contains the expression that will be evaluated against the JSON object.
-
-See `examples/rules` for more rules examples.
-
-### Operators and functions
-
-Rulestone expressions supports:
-* Comparison and negation operators like `==`, `>`, `>=`, `<`, `<=`
-* Arithmetic operations: `+`, `-`, `*`, `/`
-* Logical operators: `&&`, `||`, `!`
-* Parentheses: `(`, `)`
-* String literals: `"string"`
-* Numeric literals: `1`, `2.3`
-* Field access: `field1`, `field1.field2`
-* Functions: `hasValue`, `isEqualToAny`, `regexpMatch`, `date`, `forAll`, `forSome`
-* Date literals: `date("11/29/1968")`
-
-
-* `hasValue` - check that object has specified field, for example `hasValue(field1)`
-* `isEqualToAny` - check that object field is equal to any specified value, for example `isEqualToAny(field1, 1, 2, 3, '4')`
-* `regexpMatch` - match the Go regexp, for example `regexpMatch("^\\d{4}/\\d{2}/\\d{2}$", child.dob)`
-* `forAll`  - test that a logical expression is true for all members of the list, for example `forAll('children', 'child', child.age > 10)`
-* `forSome`  - test that a logical expression is true for at least one member of the list, for example `forSome('children', 'child', child.age > 10)`
-
-### Dates
-
-Rulestone handles dates and comparison operators on them, but since JSON doesn't provide field type information,
-need to use `date()` function. The function can parse date string in different formats:
+### Rule with Built-in Tests
 
 ```yaml
-metadata:
-  created: "2023-03-29"
-  priority: 10
-expression: 'name == "Frank" && date(dob) < date(child.dob) && date("11/29/1968") > date(dob) && date(dob) == date("11/28/1968")'
+- metadata:
+    id: premium-user
+    description: Check premium user eligibility
+  expression: user.age >= 18 && user.verified == true
+  tests:
+    - name: eligible user
+      event:
+        user:
+          age: 25
+          verified: true
+      expect: true
+    - name: underage user
+      event:
+        user:
+          age: 16
+          verified: true
+      expect: false
 ```
+
+### Multiple Rules in One File
+
+```yaml
+- metadata:
+    id: rule-1
+  expression: status == "active"
+  tests:
+    - name: active status
+      event: {status: active}
+      expect: true
+
+- metadata:
+    id: rule-2
+  expression: amount > 1000
+  tests:
+    - name: high amount
+      event: {amount: 1500}
+      expect: true
+```
+
+## API Reference
+
+### LoadOptions
+
+Controls rule loading behavior:
+
+```go
+type LoadOptions struct {
+    Validate   bool   // If true, validate expressions during load
+    RunTests   bool   // If true, execute test cases
+    FileFormat string // "yaml", "json", or "" for auto-detect
+}
+```
+
+### LoadResult
+
+Contains results of rule loading:
+
+```go
+type LoadResult struct {
+    RuleIDs      []uint       // IDs of loaded rules
+    ValidationOK bool         // True if all rules validated
+    TestResults  []TestResult // Results from test execution
+    Errors       []error      // Validation or test errors
+}
+
+// Get test statistics
+summary := result.GetTestSummary()
+fmt.Println(summary.FormatTestSummary())
+
+// Get only failed tests
+for _, ft := range result.GetFailedTests() {
+    fmt.Println(ft.FormatTestResult())
+}
+```
+
+### Loading Rules
+
+```go
+// From file
+result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+    Validate: true,
+    RunTests: true,
+})
+
+// From string
+rulesYAML := `- metadata: {id: test}
+  expression: a == 1`
+result, err := repo.LoadRulesFromString(rulesYAML, engine.LoadOptions{
+    Validate: true,
+})
+
+// From io.Reader (database, S3, HTTP, etc.)
+rulesData := fetchFromDatabase()
+reader := bytes.NewReader(rulesData)
+result, err := repo.LoadRules(reader, engine.LoadOptions{
+    Validate:   false,  // Skip validation for trusted source
+    FileFormat: "json",
+})
+```
+
+## Workflows
+
+### Development Workflow
+
+Full validation and testing during development:
+
+```go
+repo := engine.NewRuleEngineRepo()
+result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+    Validate: true,  // Validate all expressions
+    RunTests: true,  // Run all built-in tests
+})
+
+if !result.ValidationOK {
+    log.Fatal("Validation failed")
+}
+
+summary := result.GetTestSummary()
+if summary.Failed > 0 || summary.Errors > 0 {
+    log.Fatalf("Tests failed: %s", summary.FormatTestSummary())
+}
+```
+
+### CI/CD Workflow
+
+Validate rules in CI, skip validation in production:
+
+```go
+// CI: Validate and test
+tmpRepo := engine.NewRuleEngineRepo()
+result, err := tmpRepo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+    Validate: true,
+    RunTests: true,
+})
+if err != nil || !result.ValidationOK {
+    os.Exit(1)  // Fail CI build
+}
+
+// Production: Skip validation (already validated in CI)
+repo := engine.NewRuleEngineRepo()
+result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+    Validate: false,  // Trusted source
+    RunTests: false,  // Skip tests in prod
+})
+```
+
+### Hot Reload Workflow
+
+Validate new rules before swapping:
+
+```go
+// Validate in temporary repository first
+tmpRepo := engine.NewRuleEngineRepo()
+result, err := tmpRepo.LoadRules(newRulesReader, engine.LoadOptions{
+    Validate: true,
+    RunTests: true,
+})
+if err != nil || !result.ValidationOK {
+    return fmt.Errorf("invalid rules")
+}
+
+// Build new engine
+newEngine, err := engine.NewRuleEngine(tmpRepo)
+if err != nil {
+    return err
+}
+
+// Atomic swap
+atomic.StorePointer(&currentEngine, unsafe.Pointer(newEngine))
+```
+
+## Expression Language
+
+### Operators
+
+- Comparison: `==`, `!=`, `>`, `>=`, `<`, `<=`
+- Arithmetic: `+`, `-`, `*`, `/`
+- Logical: `&&`, `||`, `!`
+- Parentheses: `(`, `)`
+
+### Literals
+
+- Strings: `"text"`
+- Numbers: `1`, `2.3`, `-5`
+- Booleans: `true`, `false`
+- Null: `null`
+
+### Field Access
+
+- Simple: `field1`
+- Nested: `user.name`, `order.items[0].price`
+- Arrays: `items[0]`, `items[1].value`
+
+### Functions
+
+#### String Functions
+
+```yaml
+# Regular expression matching
+expression: regexpMatch("^[A-Z]{2}[0-9]{4}$", code)
+
+# Check if value exists
+expression: hasValue(user.email)
+
+# Check if value matches any
+expression: isEqualToAny(status, "active", "pending")
+```
+
+#### Date Functions
+
+```yaml
+# Date comparison
+expression: date(dob) < date("11/29/1968")
+
+# Date in different formats
+expression: date("2023-03-29") > date(user.registered)
+```
+
+#### Quantifier Functions
+
+```yaml
+# All elements must satisfy condition
+expression: forAll("items", "item", item.price > 0)
+
+# At least one element must satisfy condition
+expression: forSome("items", "item", item.status == "shipped")
+```
+
+## Testing
+
+### Built-in Tests
+
+Rules can include test cases that are executed during load:
+
+```yaml
+- metadata:
+    id: discount-rule
+  expression: order.total > 100 && user.premium == true
+  tests:
+    - name: premium user with high total
+      event:
+        order: {total: 150}
+        user: {premium: true}
+      expect: true
+    - name: non-premium user
+      event:
+        order: {total: 150}
+        user: {premium: false}
+      expect: false
+```
+
+### Data-Driven Testing
+
+Create test files in `tests/data/`:
+
+```go
+// tests/data_driven_test.go automatically discovers
+// and runs all *.yaml files in tests/data/
+func TestDataDrivenRules(t *testing.T) {
+    files, _ := filepath.Glob("data/*.yaml")
+    for _, file := range files {
+        t.Run(filepath.Base(file), func(t *testing.T) {
+            repo := engine.NewRuleEngineRepo()
+            result, err := repo.LoadRulesFromFile(file, engine.LoadOptions{
+                Validate: true,
+                RunTests: true,
+            })
+            // Check results...
+        })
+    }
+}
+```
+
+## Examples
+
+See comprehensive examples in:
+- `tests/data/simple_rules_with_tests.yaml` - Basic examples
+- `tests/data/comprehensive_tests.yaml` - Advanced patterns
+- `tests/data/boolean_literals.yaml` - Boolean operations
+- `examples/rules/` - Various rule patterns
+
+## Migration from v1 API
+
+Old API (v1):
+```go
+repo := engine.NewRuleEngineRepo()
+_, err := repo.RegisterRulesFromFile("rules.yaml")
+eng, _ := engine.NewRuleEngine(repo)
+```
+
+New API (v2):
+```go
+repo := engine.NewRuleEngineRepo()
+result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
+    Validate: true,
+    RunTests: true,
+})
+if !result.ValidationOK {
+    // Handle validation errors
+}
+eng, _ := engine.NewRuleEngine(repo)
+```
+
+## Performance
+
+- Process tens of thousands of events per second
+- Support thousands of rules
+- Category-based optimization reduces matching complexity
+- O(1) attribute lookup with object mapping
+- Zero allocation for event matching (after warm-up)
 
 ## Contributing
-We love contributions! If you have any suggestions, bug reports, or feature requests, please open an issue in our [tracker](https://github.com/atlasgurus/rulestone/issues).
+
+We love contributions! If you have suggestions, bug reports, or feature requests, please open an issue in our [tracker](https://github.com/atlasgurus/rulestone/issues).
 
 ## License
+
 This project is licensed under the MIT License - see the LICENSE file for details.

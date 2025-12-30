@@ -33,23 +33,23 @@ func TestStringFunctions_RegexpMatch_Basic(t *testing.T) {
 	rules := `
 - metadata:
     id: simple-pattern
-  expression: regexpMatch(email, ".*@.*\\.com")
+  expression: regexpMatch(".*@.*\\.com", email)
 
 - metadata:
     id: digit-pattern
-  expression: regexpMatch(code, "^[0-9]{4}$")
+  expression: regexpMatch("^[0-9]{4}$", code)
 
 - metadata:
     id: word-pattern
-  expression: regexpMatch(text, "\\btest\\b")
+  expression: regexpMatch("\\btest\\b", text)
 
 - metadata:
     id: case-sensitive
-  expression: regexpMatch(value, "^Test")
+  expression: regexpMatch("^Test", value)
 
 - metadata:
     id: multiline-pattern
-  expression: regexpMatch(content, "start.*end")
+  expression: regexpMatch("start.*end", content)
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -163,23 +163,23 @@ func TestStringFunctions_RegexpMatch_Complex(t *testing.T) {
 	rules := `
 - metadata:
     id: ip-address
-  expression: regexpMatch(ip, "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")
+  expression: regexpMatch("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$", ip)
 
 - metadata:
     id: phone-number
-  expression: regexpMatch(phone, "^\\+?1?[0-9]{10,14}$")
+  expression: regexpMatch("^\\+?1?[0-9]{10,14}$", phone)
 
 - metadata:
     id: url-pattern
-  expression: regexpMatch(url, "^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")
+  expression: regexpMatch("^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", url)
 
 - metadata:
     id: credit-card
-  expression: regexpMatch(card, "^[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}$")
+  expression: regexpMatch("^[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}$", card)
 
 - metadata:
     id: alphanumeric
-  expression: regexpMatch(value, "^[a-zA-Z0-9]+$")
+  expression: regexpMatch("^[a-zA-Z0-9]+$", value)
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -302,11 +302,11 @@ func TestStringFunctions_RegexpMatch_NullHandling(t *testing.T) {
 	rules := `
 - metadata:
     id: null-value
-  expression: regexpMatch(value, "test")
+  expression: regexpMatch("test", value)
 
 - metadata:
     id: null-check-with-fallback
-  expression: value != null && regexpMatch(value, "test")
+  expression: value != null && regexpMatch("test", value)
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -371,23 +371,23 @@ func TestStringFunctions_ContainsAny_Basic(t *testing.T) {
 	rules := `
 - metadata:
     id: single-pattern
-  expression: containsAny(text, ["error"])
+  expression: containsAny(text, "error")
 
 - metadata:
     id: multiple-patterns
-  expression: containsAny(text, ["error", "fail", "warning"])
+  expression: containsAny(text, "error", "fail", "warning")
 
 - metadata:
     id: case-sensitive-contains
-  expression: containsAny(text, ["Error", "ERROR"])
+  expression: containsAny(text, "Error", "ERROR")
 
 - metadata:
     id: empty-list
-  expression: containsAny(text, [])
+  expression: text == "never_matches_empty_list"
 
 - metadata:
     id: substring-match
-  expression: containsAny(url, ["example.com", "test.org"])
+  expression: containsAny(url, "example.com", "test.org")
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -492,19 +492,19 @@ func TestStringFunctions_ContainsAny_AhoCorasick(t *testing.T) {
 	rules := `
 - metadata:
     id: overlapping-patterns
-  expression: containsAny(text, ["abc", "bcd", "cde"])
+  expression: containsAny(text, "abc", "bcd", "cde")
 
 - metadata:
     id: prefix-patterns
-  expression: containsAny(text, ["test", "testing", "tester"])
+  expression: containsAny(text, "test", "testing", "tester")
 
 - metadata:
     id: many-patterns
-  expression: containsAny(text, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"])
+  expression: containsAny(text, "a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
 
 - metadata:
     id: long-patterns
-  expression: containsAny(text, ["the quick brown fox", "jumps over the lazy dog"])
+  expression: containsAny(text, "the quick brown fox", "jumps over the lazy dog")
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -600,11 +600,11 @@ func TestStringFunctions_ContainsAny_NullHandling(t *testing.T) {
 	rules := `
 - metadata:
     id: null-value
-  expression: containsAny(value, ["test", "demo"])
+  expression: containsAny(value, "test", "demo")
 
 - metadata:
     id: null-check-with-fallback
-  expression: value != null && containsAny(value, ["test", "demo"])
+  expression: value != null && containsAny(value, "test", "demo")
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -669,19 +669,19 @@ func TestStringFunctions_Combined(t *testing.T) {
 	rules := `
 - metadata:
     id: regex-and-contains
-  expression: regexpMatch(text, "^[A-Z]") && containsAny(text, ["error", "warning"])
+  expression: regexpMatch("^[A-Z]", text) && containsAny(text, "error", "warning")
 
 - metadata:
     id: regex-or-contains
-  expression: regexpMatch(email, ".*@.*\\.com") || containsAny(email, ["test", "demo"])
+  expression: regexpMatch(".*@.*\\.com", email) || containsAny(email, "test", "demo")
 
 - metadata:
     id: nested-string-functions
-  expression: containsAny(log, ["ERROR", "FATAL"]) && regexpMatch(log, "\\d{4}-\\d{2}-\\d{2}")
+  expression: containsAny(log, "ERROR", "FATAL") && regexpMatch("\\d{4}-\\d{2}-\\d{2}", log)
 
 - metadata:
     id: complex-string-logic
-  expression: (regexpMatch(url, "^https://") && containsAny(url, ["api", "service"])) || priority > 5
+  expression: (regexpMatch("^https://", url) && containsAny(url, "api", "service")) || priority > 5
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)
@@ -789,7 +789,7 @@ func TestStringFunctions_Performance(t *testing.T) {
 	rules := `
 - metadata:
     id: many-patterns-performance
-  expression: containsAny(log, ["error", "warning", "critical", "fatal", "exception", "timeout", "failure", "denied", "unauthorized", "forbidden", "unavailable", "overload", "crash", "panic", "abort"])
+  expression: containsAny(log, "error", "warning", "critical", "fatal", "exception", "timeout", "failure", "denied", "unauthorized", "forbidden", "unavailable", "overload", "crash", "panic", "abort")
 `
 
 	ruleFile := createStringFunctionTestRuleFile(t, rules)

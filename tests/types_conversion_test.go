@@ -134,8 +134,8 @@ func TestTypeConversion_NumberToString(t *testing.T) {
   expression: price == "99.99"
 
 - metadata:
-    id: int-contains-check
-  expression: status contains "200"
+    id: int-string-contains
+  expression: containsAny(status, "200")
 `
 
 	ruleFile := createTypeConversionTestRuleFile(t, rules)
@@ -199,24 +199,24 @@ func TestTypeConversion_NumberToString(t *testing.T) {
 	}
 }
 
-// TestTypeConversion_BooleanToNumeric tests boolean to numeric conversions
+// TestTypeConversion_BooleanToNumeric documents that booleans DO NOT convert to numbers
 func TestTypeConversion_BooleanToNumeric(t *testing.T) {
 	rules := `
 - metadata:
-    id: true-equals-one
-  expression: isActive == 1
+    id: true-equals-true
+  expression: isActive == true
 
 - metadata:
-    id: false-equals-zero
-  expression: isDisabled == 0
+    id: false-equals-false
+  expression: isDisabled == false
 
 - metadata:
-    id: bool-in-arithmetic
-  expression: boolValue + 5 == 6
+    id: bool-in-logical
+  expression: boolValue == true && flag == true
 
 - metadata:
-    id: bool-comparison
-  expression: flag > 0
+    id: bool-not-equal-number
+  expression: flag == 1
 `
 
 	ruleFile := createTypeConversionTestRuleFile(t, rules)
@@ -239,49 +239,41 @@ func TestTypeConversion_BooleanToNumeric(t *testing.T) {
 		description string
 	}{
 		{
-			name: "true converts to 1",
+			name: "true equals true",
 			event: map[string]interface{}{
 				"isActive": true,
 			},
 			expectMin:   1,
 			expectMax:   1,
-			description: "Boolean true should equal numeric 1",
+			description: "Boolean true should equal boolean true",
 		},
 		{
-			name: "false converts to 0",
+			name: "false equals false",
 			event: map[string]interface{}{
 				"isDisabled": false,
 			},
 			expectMin:   1,
 			expectMax:   1,
-			description: "Boolean false should equal numeric 0",
+			description: "Boolean false should equal boolean false",
 		},
 		{
-			name: "boolean in arithmetic (true)",
+			name: "boolean in logical expression",
 			event: map[string]interface{}{
 				"boolValue": true,
+				"flag":      true,
 			},
 			expectMin:   1,
 			expectMax:   1,
-			description: "Boolean true (1) + 5 should equal 6",
+			description: "Booleans work in logical expressions",
 		},
 		{
-			name: "boolean in comparison",
+			name: "boolean does NOT equal number",
 			event: map[string]interface{}{
 				"flag": true,
 			},
-			expectMin:   1,
-			expectMax:   1,
-			description: "Boolean true (1) should be > 0",
-		},
-		{
-			name: "false in comparison",
-			event: map[string]interface{}{
-				"flag": false,
-			},
 			expectMin:   0,
 			expectMax:   0,
-			description: "Boolean false (0) should not be > 0",
+			description: "Boolean true does NOT equal numeric 1 - no conversion",
 		},
 	}
 
@@ -414,8 +406,8 @@ func TestTypeConversion_TypeReconciliationMatrix(t *testing.T) {
   expression: b == "3.14"
 
 - metadata:
-    id: bool-int
-  expression: d == 1
+    id: bool-bool
+  expression: d == true
 `
 
 	ruleFile := createTypeConversionTestRuleFile(t, rules)
@@ -469,9 +461,9 @@ func TestTypeConversion_TypeReconciliationMatrix(t *testing.T) {
 			event: map[string]interface{}{
 				"d": true,
 			},
-			expectMin:   2, // bool-bool, bool-int
-			expectMax:   2,
-			description: "Boolean true should match bool and int (1) comparisons",
+			expectMin:   1, // bool-bool only (no bool-int conversion)
+			expectMax:   1,
+			description: "Boolean true should match bool comparison only (NOT int)",
 		},
 	}
 
@@ -647,7 +639,7 @@ func TestTypeConversion_MixedOperations(t *testing.T) {
 
 - metadata:
     id: bool-string-logic
-  expression: (isActive == "1" || isDisabled == 0) && status == "active"
+  expression: (isActive == true || isDisabled == false) && status == "active"
 
 - metadata:
     id: complex-mixed
@@ -685,7 +677,7 @@ func TestTypeConversion_MixedOperations(t *testing.T) {
 			description: "(50 + 70.0) / 2 = 60.0 > 50.0",
 		},
 		{
-			name: "boolean with string and numeric",
+			name: "boolean with string",
 			event: map[string]interface{}{
 				"isActive":   true,
 				"isDisabled": false,
@@ -693,7 +685,7 @@ func TestTypeConversion_MixedOperations(t *testing.T) {
 			},
 			expectMin:   1,
 			expectMax:   1,
-			description: "Boolean conversions in complex logical expression",
+			description: "Booleans work with strings in complex logical expression",
 		},
 		{
 			name: "string number in arithmetic",

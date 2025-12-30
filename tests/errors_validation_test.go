@@ -43,9 +43,9 @@ func TestErrorValidation_InvalidRuleSyntax(t *testing.T) {
 			rules: `
 - expression: a == 1
 `,
-			shouldError:   true,
+			shouldError:   false,
 			errorContains: "",
-			description:   "Rule without metadata should error",
+			description:   "Rule without metadata is valid",
 		},
 		{
 			name: "missing expression",
@@ -64,9 +64,9 @@ func TestErrorValidation_InvalidRuleSyntax(t *testing.T) {
     name: test
   expression: a == 1
 `,
-			shouldError:   true,
+			shouldError:   false,
 			errorContains: "",
-			description:   "Rule without ID should error",
+			description:   "Rule without ID is valid",
 		},
 		{
 			name: "empty expression",
@@ -85,17 +85,38 @@ func TestErrorValidation_InvalidRuleSyntax(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ruleFile := createErrorValidationTestRuleFile(t, tt.rules)
 			repo := engine.NewRuleEngineRepo()
-			_, err := repo.RegisterRulesFromFile(ruleFile)
+			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
+				Validate:   true,
+				RunTests:   false,
+				FileFormat: "",
+			})
 
 			if tt.shouldError {
-				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.description)
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("Expected error containing '%s', got: %v", tt.errorContains, err)
+				// Check if either parsing failed (err != nil) or validation failed
+				if err == nil && result.ValidationOK {
+					t.Errorf("Expected error for %s, got success", tt.description)
+				} else if tt.errorContains != "" {
+					// Check error string in either err or result.Errors
+					foundError := false
+					if err != nil && strings.Contains(err.Error(), tt.errorContains) {
+						foundError = true
+					}
+					for _, e := range result.Errors {
+						if strings.Contains(e.Error(), tt.errorContains) {
+							foundError = true
+							break
+						}
+					}
+					if !foundError && tt.errorContains != "" {
+						t.Errorf("Expected error containing '%s', got: err=%v, errors=%v", tt.errorContains, err, result.Errors)
+					}
 				}
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				}
+				if !result.ValidationOK {
+					t.Errorf("Unexpected validation failure for %s: %v", tt.description, result.Errors)
 				}
 			}
 		})
@@ -171,17 +192,38 @@ func TestErrorValidation_InvalidExpressionSyntax(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			_, err := repo.RegisterRulesFromFile(ruleFile)
+			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
+				Validate:   true,
+				RunTests:   false,
+				FileFormat: "",
+			})
 
 			if tt.shouldError {
-				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.description)
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("Expected error containing '%s', got: %v", tt.errorContains, err)
+				// Check if either parsing failed (err != nil) or validation failed
+				if err == nil && result.ValidationOK {
+					t.Errorf("Expected error for %s, got success", tt.description)
+				} else if tt.errorContains != "" {
+					// Check error string in either err or result.Errors
+					foundError := false
+					if err != nil && strings.Contains(err.Error(), tt.errorContains) {
+						foundError = true
+					}
+					for _, e := range result.Errors {
+						if strings.Contains(e.Error(), tt.errorContains) {
+							foundError = true
+							break
+						}
+					}
+					if !foundError && tt.errorContains != "" {
+						t.Errorf("Expected error containing '%s', got: err=%v, errors=%v", tt.errorContains, err, result.Errors)
+					}
 				}
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				}
+				if !result.ValidationOK {
+					t.Errorf("Unexpected validation failure for %s: %v", tt.description, result.Errors)
 				}
 			}
 		})
@@ -250,17 +292,38 @@ func TestErrorValidation_InvalidFunctionCalls(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			_, err := repo.RegisterRulesFromFile(ruleFile)
+			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
+				Validate:   true,
+				RunTests:   false,
+				FileFormat: "",
+			})
 
 			if tt.shouldError {
-				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.description)
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("Expected error containing '%s', got: %v", tt.errorContains, err)
+				// Check if either parsing failed (err != nil) or validation failed
+				if err == nil && result.ValidationOK {
+					t.Errorf("Expected error for %s, got success", tt.description)
+				} else if tt.errorContains != "" {
+					// Check error string in either err or result.Errors
+					foundError := false
+					if err != nil && strings.Contains(err.Error(), tt.errorContains) {
+						foundError = true
+					}
+					for _, e := range result.Errors {
+						if strings.Contains(e.Error(), tt.errorContains) {
+							foundError = true
+							break
+						}
+					}
+					if !foundError && tt.errorContains != "" {
+						t.Errorf("Expected error containing '%s', got: err=%v, errors=%v", tt.errorContains, err, result.Errors)
+					}
 				}
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				}
+				if !result.ValidationOK {
+					t.Errorf("Unexpected validation failure for %s: %v", tt.description, result.Errors)
 				}
 			}
 		})
@@ -322,17 +385,38 @@ func TestErrorValidation_InvalidQuantifiers(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			_, err := repo.RegisterRulesFromFile(ruleFile)
+			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
+				Validate:   true,
+				RunTests:   false,
+				FileFormat: "",
+			})
 
 			if tt.shouldError {
-				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.description)
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("Expected error containing '%s', got: %v", tt.errorContains, err)
+				// Check if either parsing failed (err != nil) or validation failed
+				if err == nil && result.ValidationOK {
+					t.Errorf("Expected error for %s, got success", tt.description)
+				} else if tt.errorContains != "" {
+					// Check error string in either err or result.Errors
+					foundError := false
+					if err != nil && strings.Contains(err.Error(), tt.errorContains) {
+						foundError = true
+					}
+					for _, e := range result.Errors {
+						if strings.Contains(e.Error(), tt.errorContains) {
+							foundError = true
+							break
+						}
+					}
+					if !foundError && tt.errorContains != "" {
+						t.Errorf("Expected error containing '%s', got: err=%v, errors=%v", tt.errorContains, err, result.Errors)
+					}
 				}
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				}
+				if !result.ValidationOK {
+					t.Errorf("Unexpected validation failure for %s: %v", tt.description, result.Errors)
 				}
 			}
 		})

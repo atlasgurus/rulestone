@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/atlasgurus/rulestone/cateng"
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/objectmap"
@@ -188,7 +189,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 	ruleInfos := make([]ruleInfo, 0, len(externalRules))
 
 	// Process each rule
-	for _, extRule := range externalRules {
+	for ruleIndex, extRule := range externalRules {
 		// Get rule ID from metadata (if available)
 		ruleID := ""
 		if id, ok := extRule.Metadata["id"]; ok {
@@ -197,7 +198,26 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 			}
 		}
 
-		// Convert to internal rule (includes expression parsing if Validate=false)
+		// Create a descriptor for error messages
+		ruleDescriptor := ""
+		if ruleID != "" {
+			ruleDescriptor = ruleID
+		} else {
+			ruleDescriptor = fmt.Sprintf("rule at index %d", ruleIndex)
+		}
+
+		// Check for missing expression
+		if extRule.Expression == "" {
+			if opts.Validate {
+				result.ValidationOK = false
+				result.Errors = append(result.Errors, repo.ctx.Errorf("%s: missing or empty expression", ruleDescriptor))
+				continue // Skip this rule
+			} else {
+				return nil, repo.ctx.Errorf("%s: missing or empty expression", ruleDescriptor)
+			}
+		}
+
+		// Convert to internal rule (includes expression parsing)
 		var internalRule *InternalRule
 		var err error
 
@@ -206,7 +226,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 			internalRule, err = externalToInternalRule(&extRule)
 			if err != nil {
 				result.ValidationOK = false
-				result.Errors = append(result.Errors, repo.ctx.Errorf("rule %s: validation failed: %v", ruleID, err))
+				result.Errors = append(result.Errors, repo.ctx.Errorf("%s: validation failed: %v", ruleDescriptor, err))
 				continue // Skip this rule
 			}
 		} else {
@@ -214,7 +234,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 			internalRule, err = externalToInternalRule(&extRule)
 			if err != nil {
 				// Even without validation, basic parsing errors are fatal
-				return nil, repo.ctx.Errorf("rule %s: failed to parse: %v", ruleID, err)
+				return nil, repo.ctx.Errorf("%s: failed to parse: %v", ruleDescriptor, err)
 			}
 		}
 

@@ -882,7 +882,7 @@ func (v NullOperand) GetHash() uint64 {
 }
 
 func (v NullOperand) Equals(o immutable.SetElement) bool {
-	return false
+	return o.(Operand).GetKind() == NullOperandKind
 }
 
 func (v NullOperand) Greater(o Operand) bool {

@@ -1,0 +1,403 @@
+# Arithmetic Operators Test Cases
+# This file covers basic arithmetic operations: +, -, *, /, and combinations
+
+# Basic Addition Operations
+- metadata:
+    id: int-add
+    description: Integer addition - sum equals 30
+  expression: value1 + value2 == 30
+  tests:
+    - name: integer addition
+      event:
+        value1: 10
+        value2: 20
+      expect: true
+
+- metadata:
+    id: float-add
+    description: Float addition - sum greater than 99.99
+  expression: price1 + price2 > 99.99
+  tests:
+    - name: float addition
+      event:
+        price1: 50.50
+        price2: 49.99
+      expect: true
+
+- metadata:
+    id: mixed-add
+    description: Mixed int and float addition
+  expression: intVal + floatVal > 100.0
+  tests:
+    - name: mixed int and float addition
+      event:
+        intVal: 50
+        floatVal: 50.5
+      expect: true
+
+- metadata:
+    id: multi-add
+    description: Multiple additions - sum of three numbers
+  expression: a + b + c == 60
+  tests:
+    - name: multiple additions
+      event:
+        a: 10
+        b: 20
+        c: 30
+      expect: true
+
+- metadata:
+    id: negative-add
+    description: Addition with negative numbers
+  expression: positive + negative == 5
+  tests:
+    - name: addition with negative numbers
+      event:
+        positive: 15
+        negative: -10
+      expect: true
+
+# Basic Subtraction Operations
+- metadata:
+    id: int-sub
+    description: Integer subtraction - difference equals 10
+  expression: subVal1 - subVal2 == 10
+  tests:
+    - name: integer subtraction
+      event:
+        subVal1: 30
+        subVal2: 20
+      expect: true
+
+- metadata:
+    id: float-sub
+    description: Float subtraction - difference less than 1.0
+  expression: subPrice1 - subPrice2 < 1.0
+  tests:
+    - name: float subtraction
+      event:
+        subPrice1: 10.50
+        subPrice2: 10.00
+      expect: true
+
+- metadata:
+    id: negative-result
+    description: Subtraction resulting in negative number
+  expression: small - large < 0
+  tests:
+    - name: subtraction resulting in negative
+      event:
+        small: 5
+        large: 10
+      expect: true
+
+- metadata:
+    id: sub-negative
+    description: Subtraction with negative operand
+  expression: value - negative == 25
+  tests:
+    - name: subtraction with negative operand
+      event:
+        value: 15
+        negative: -10
+      expect: true
+
+# Basic Multiplication Operations
+- metadata:
+    id: int-mul
+    description: Integer multiplication - product equals 100
+  expression: quantity * price == 100
+  tests:
+    - name: integer multiplication
+      event:
+        quantity: 10
+        price: 10
+      expect: true
+
+- metadata:
+    id: float-mul
+    description: Float multiplication - product greater than 100.0
+  expression: rate * hours > 100.0
+  tests:
+    - name: float multiplication
+      event:
+        rate: 25.50
+        hours: 4.0
+      expect: true
+
+- metadata:
+    id: mul-zero
+    description: Multiplication by zero
+  expression: value * zero == 0
+  tests:
+    - name: multiplication by zero
+      event:
+        value: 100
+        zero: 0
+      expect: true
+
+- metadata:
+    id: mul-negative
+    description: Multiplication with negative number
+  expression: mulPos * mulNeg < 0
+  tests:
+    - name: multiplication with negative
+      event:
+        mulPos: 10
+        mulNeg: -5
+      expect: true
+
+# Basic Division Operations
+- metadata:
+    id: int-div
+    description: Integer division - quotient equals 10
+  expression: total / count == 10
+  tests:
+    - name: integer division
+      event:
+        total: 100
+        count: 10
+      expect: true
+
+- metadata:
+    id: float-div
+    description: Float division - quotient greater than 2.0
+  expression: numerator / denominator > 2.0
+  tests:
+    - name: float division
+      event:
+        numerator: 10.0
+        denominator: 4.0
+      expect: true
+
+- metadata:
+    id: div-float-result
+    description: Division resulting in float
+  expression: divA / divB < 4.0
+  tests:
+    - name: division resulting in float
+      event:
+        divA: 10
+        divB: 3
+      expect: true
+
+# Division by Zero Handling
+- metadata:
+    id: div-zero
+    description: Division by zero - should be handled gracefully
+  expression: value / zero > 0
+  tests:
+    - name: division by zero
+      event:
+        value: 100
+        zero: 0
+      expect: false
+
+# Mixed Operations
+- metadata:
+    id: add-mul
+    description: Addition and multiplication with precedence
+  expression: a + b * c == 50
+  tests:
+    - name: addition and multiplication
+      event:
+        a: 10
+        b: 10
+        c: 4
+      expect: true
+
+- metadata:
+    id: parens
+    description: Parentheses override precedence
+  expression: (parA + parB) * parC == 60
+  tests:
+    - name: parentheses precedence
+      event:
+        parA: 10
+        parB: 10
+        parC: 3
+      expect: true
+
+- metadata:
+    id: complex
+    description: Complex expression with multiple operations
+  expression: (a + b) * c - d / e > 50
+  tests:
+    - name: complex expression
+      event:
+        a: 10
+        b: 10
+        c: 3
+        d: 20
+        e: 2
+      expect: false
+
+- metadata:
+    id: sub-div
+    description: Subtraction and division with parentheses
+  expression: (total - discount) / quantity == 9
+  tests:
+    - name: subtraction and division
+      event:
+        total: 100
+        discount: 10
+        quantity: 10
+      expect: true
+
+# Type Mixing
+- metadata:
+    id: int-plus-float
+    description: Integer plus float
+  expression: intVal + floatVal > 100.0
+  tests:
+    - name: int plus float
+      event:
+        intVal: 50
+        floatVal: 50.1
+      expect: true
+
+- metadata:
+    id: float-minus-int
+    description: Float minus integer
+  expression: floatVal - intVal < 1.0
+  tests:
+    - name: float minus int
+      event:
+        floatVal: 10.5
+        intVal: 10
+      expect: true
+
+- metadata:
+    id: int-times-float
+    description: Integer times float
+  expression: mulIntVal * mulFloatVal == 50.0
+  tests:
+    - name: int times float
+      event:
+        mulIntVal: 10
+        mulFloatVal: 5.0
+      expect: true
+
+- metadata:
+    id: float-div-int
+    description: Float divided by integer
+  expression: divFloatVal / divIntVal == 2.5
+  tests:
+    - name: float divided by int - precision test
+      event:
+        divFloatVal: 10.0
+        divIntVal: 4
+      expect: true
+
+# Null Operands
+- metadata:
+    id: null-check
+    description: Arithmetic with null values
+  expression: value + amount > 0
+  tests:
+    - name: missing field (null)
+      event:
+        amount: 10
+      expect: false
+    - name: explicit null field
+      event:
+        value: null
+        amount: 10
+      expect: false
+    - name: both fields null
+      event:
+        value: null
+        amount: null
+      expect: false
+
+# Operator Precedence
+- metadata:
+    id: mul-precedence
+    description: Multiplication precedence over addition
+  expression: a + b * c == 14
+  tests:
+    - name: multiplication before addition
+      event:
+        a: 2
+        b: 3
+        c: 4
+      expect: true
+
+- metadata:
+    id: div-precedence
+    description: Division precedence over subtraction
+  expression: precA1 - precB1 / precC1 == 8
+  tests:
+    - name: division before subtraction
+      event:
+        precA1: 10
+        precB1: 6
+        precC1: 3
+      expect: true
+
+- metadata:
+    id: left-to-right
+    description: Left to right evaluation for same precedence
+  expression: ltrA - ltrB + ltrC == 6
+  tests:
+    - name: left to right for same precedence
+      event:
+        ltrA: 10
+        ltrB: 5
+        ltrC: 1
+      expect: true
+
+- metadata:
+    id: parens-override
+    description: Parentheses override operator precedence
+  expression: (parOvA + parOvB) * parOvC == 20
+  tests:
+    - name: parentheses override precedence
+      event:
+        parOvA: 2
+        parOvB: 3
+        parOvC: 4
+      expect: true
+
+# Arithmetic in Quantifiers
+- metadata:
+    id: arith-forsome
+    description: Arithmetic operations inside forSome quantifier
+  expression: forSome("items", "item", item.price * item.quantity > 100)
+  tests:
+    - name: arithmetic in forSome
+      event:
+        items:
+          - price: 10
+            quantity: 5
+          - price: 20
+            quantity: 6
+      expect: true
+
+- metadata:
+    id: arith-forall
+    description: Arithmetic operations inside forAll quantifier
+  expression: forAll("items", "item", item.price + item.tax < 100)
+  tests:
+    - name: arithmetic in forAll
+      event:
+        items:
+          - price: 50
+            tax: 5
+          - price: 40
+            tax: 3
+      expect: true
+
+- metadata:
+    id: complex-arith-quantifier
+    description: Complex arithmetic expression in quantifier
+  expression: forSome("items", "item", (item.price - item.discount) * item.quantity > 50)
+  tests:
+    - name: complex arithmetic in quantifier
+      event:
+        items:
+          - price: 20
+            discount: 5
+            quantity: 4
+      expect: true

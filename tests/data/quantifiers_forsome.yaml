@@ -1,0 +1,312 @@
+- metadata:
+    id: forsome-empty
+    description: Test forSome with empty arrays (should return false)
+  expression: forSome("items", "item", item.value > 100)
+  tests:
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array - forSome should return false (no elements to match)
+    - name: missing array field
+      event:
+        other: "data"
+      expect: false
+      description: Missing array field should not match
+
+- metadata:
+    id: forsome-single
+    description: Test forSome with single-element arrays
+  expression: forSome("items", "item", item.value > 50)
+  tests:
+    - name: single element matches
+      event:
+        items:
+          - value: 60
+      expect: true
+      description: Single element > 50 should match
+    - name: single element does not match
+      event:
+        items:
+          - value: 40
+      expect: false
+      description: Single element <= 50 should not match
+
+- metadata:
+    id: forsome-multi
+    description: Test forSome with multiple elements
+  expression: forSome("items", "item", item.value > 100)
+  tests:
+    - name: first element matches
+      event:
+        items:
+          - value: 150
+          - value: 50
+          - value: 60
+      expect: true
+      description: First element > 100, forSome should match (and possibly short-circuit)
+    - name: middle element matches
+      event:
+        items:
+          - value: 50
+          - value: 150
+          - value: 60
+      expect: true
+      description: Middle element > 100, forSome should match
+    - name: last element matches
+      event:
+        items:
+          - value: 50
+          - value: 60
+          - value: 150
+      expect: true
+      description: Last element > 100, forSome should match
+    - name: multiple elements match
+      event:
+        items:
+          - value: 150
+          - value: 200
+          - value: 250
+      expect: true
+      description: Multiple elements > 100, forSome should match
+    - name: no elements match
+      event:
+        items:
+          - value: 50
+          - value: 60
+          - value: 70
+      expect: false
+      description: No elements > 100, forSome should not match
+
+- metadata:
+    id: forsome-and
+    description: Test forSome with AND condition
+  expression: forSome("items", "item", item.price > 100 && item.available == 1)
+  tests:
+    - name: one item matches both conditions
+      event:
+        items:
+          - price: 50
+            available: 1
+          - price: 150
+            available: 1
+      expect: true
+      description: One item has price > 100 AND available
+    - name: no items match both conditions
+      event:
+        items:
+          - price: 150
+            available: 0
+          - price: 50
+            available: 1
+      expect: false
+      description: No items match both conditions
+
+- metadata:
+    id: forsome-or
+    description: Test forSome with OR condition
+  expression: forSome("items", "item", item.category == "premium" || item.price > 500)
+  tests:
+    - name: matches category
+      event:
+        items:
+          - category: "premium"
+            price: 50
+          - category: "standard"
+            price: 100
+      expect: true
+      description: One item is premium category
+    - name: matches price
+      event:
+        items:
+          - category: "standard"
+            price: 600
+          - category: "standard"
+            price: 100
+      expect: true
+      description: One item has price > 500
+    - name: matches neither condition
+      event:
+        items:
+          - category: "standard"
+            price: 100
+          - category: "standard"
+            price: 200
+      expect: false
+      description: No items match either condition
+
+- metadata:
+    id: forsome-not
+    description: Test forSome with NOT condition
+  expression: forSome("items", "item", !(item.discontinued == 1))
+  tests:
+    - name: at least one not discontinued
+      event:
+        items:
+          - discontinued: 1
+          - discontinued: 0
+      expect: true
+      description: At least one item not discontinued
+    - name: all discontinued
+      event:
+        items:
+          - discontinued: 1
+          - discontinued: 1
+      expect: false
+      description: All items discontinued
+
+- metadata:
+    id: forsome-arithmetic
+    description: Test forSome with arithmetic in conditions
+  expression: forSome("items", "item", item.price * item.quantity > 1000)
+  tests:
+    - name: at least one total over limit
+      event:
+        items:
+          - price: 10
+            quantity: 50
+          - price: 100
+            quantity: 20
+      expect: true
+      description: One item - 100 * 20 = 2000 > 1000
+    - name: all totals under limit
+      event:
+        items:
+          - price: 10
+            quantity: 50
+          - price: 20
+            quantity: 30
+      expect: false
+      description: No items have price * quantity > 1000
+
+- metadata:
+    id: nested-forsome
+    description: Test nested forSome quantifiers
+  expression: forSome("orders", "order", forSome("order.items", "item", item.price > 100))
+  tests:
+    - name: one order has expensive item
+      event:
+        orders:
+          - items:
+              - price: 50
+              - price: 60
+          - items:
+              - price: 150
+      expect: true
+      description: At least one order has at least one item with price > 100
+    - name: no orders have expensive items
+      event:
+        orders:
+          - items:
+              - price: 50
+              - price: 60
+          - items:
+              - price: 70
+              - price: 80
+      expect: false
+      description: No orders have items with price > 100
+
+- metadata:
+    id: forsome-forall
+    description: Test forSome with nested forAll quantifier
+  expression: forSome("orders", "order", forAll("order.items", "item", item.validated == 1))
+  tests:
+    - name: one order all validated
+      event:
+        orders:
+          - items:
+              - validated: 1
+              - validated: 1
+          - items:
+              - validated: 0
+      expect: true
+      description: At least one order has all items validated
+    - name: no orders all validated
+      event:
+        orders:
+          - items:
+              - validated: 1
+              - validated: 0
+          - items:
+              - validated: 0
+              - validated: 1
+      expect: false
+      description: No orders have all items validated
+
+- metadata:
+    id: forsome-null
+    description: Test forSome with null/missing fields
+  expression: forSome("items", "item", item.value > 50)
+  tests:
+    - name: one null one matching
+      event:
+        items:
+          - value: null
+          - value: 60
+      expect: true
+      description: One null element, one matching
+    - name: one missing field one matching
+      event:
+        items:
+          - other: "field"
+          - value: 60
+      expect: true
+      description: One missing value field, one matching
+    - name: all null values
+      event:
+        items:
+          - value: null
+          - value: null
+      expect: false
+      description: All elements have null value
+
+- metadata:
+    id: forsome-large
+    description: Test forSome with large arrays for short-circuit behavior
+  expression: forSome("items", "item", item.value > 500)
+  tests:
+    - name: large array first matches
+      event:
+        items:
+          - value: 600
+          - value: 1
+          - value: 2
+          - value: 3
+          - value: 4
+          - value: 5
+          - value: 6
+          - value: 7
+          - value: 8
+          - value: 9
+      expect: true
+      description: Large array with first element matching (should short-circuit)
+    - name: large array none match
+      event:
+        items:
+          - value: 1
+          - value: 2
+          - value: 3
+          - value: 4
+          - value: 5
+          - value: 6
+          - value: 7
+          - value: 8
+          - value: 9
+          - value: 10
+      expect: false
+      description: Large array with no matching elements
+    - name: large array last matches
+      event:
+        items:
+          - value: 1
+          - value: 2
+          - value: 3
+          - value: 4
+          - value: 5
+          - value: 6
+          - value: 7
+          - value: 8
+          - value: 9
+          - value: 600
+      expect: true
+      description: Large array with last element matching

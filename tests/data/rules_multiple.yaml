@@ -1,0 +1,880 @@
+# TestMultipleRules_SameEventMatching - Multiple rules matching the same event
+- metadata:
+    id: rule-1
+    description: Value greater than 10
+  expression: value1 > 10
+  tests:
+    - name: matches value 50
+      event:
+        value1: 50
+      expect: true
+    - name: matches value 7
+      event:
+        value1: 7
+      expect: false
+    - name: does not match value 0
+      event:
+        value1: 0
+      expect: false
+
+- metadata:
+    id: rule-2
+    description: Value greater than 5
+  expression: value2 > 5
+  tests:
+    - name: matches value 50
+      event:
+        value2: 50
+      expect: true
+    - name: matches value 7
+      event:
+        value2: 7
+      expect: true
+    - name: does not match value 0
+      event:
+        value2: 0
+      expect: false
+
+- metadata:
+    id: rule-3
+    description: Value less than 100
+  expression: value3 < 100
+  tests:
+    - name: matches value 50
+      event:
+        value3: 50
+      expect: true
+    - name: matches value 7
+      event:
+        value3: 7
+      expect: true
+    - name: matches value 0
+      event:
+        value3: 0
+      expect: true
+
+- metadata:
+    id: rule-4
+    description: Value equals 50
+  expression: value4 == 50
+  tests:
+    - name: matches value 50
+      event:
+        value4: 50
+      expect: true
+    - name: does not match value 7
+      event:
+        value4: 7
+      expect: false
+    - name: does not match value 0
+      event:
+        value4: 0
+      expect: false
+
+- metadata:
+    id: rule-5
+    description: Value not equal to 0
+  expression: value5 != 0
+  tests:
+    - name: matches value 50
+      event:
+        value5: 50
+      expect: true
+    - name: matches value 7
+      event:
+        value5: 7
+      expect: true
+    - name: does not match value 0
+      event:
+        value5: 0
+      expect: false
+
+# TestMultipleRules_OverlappingConditions - Rules with overlapping conditions
+- metadata:
+    id: high-value
+    description: High value transactions
+  expression: hvAmount > 1000
+  tests:
+    - name: matches high value US premium
+      event:
+        hvAmount: 1500
+        hvCountry: US
+        hvCustomerType: premium
+      expect: true
+    - name: matches high value US regular
+      event:
+        hvAmount: 1500
+        hvCountry: US
+        hvCustomerType: regular
+      expect: true
+    - name: does not match low value
+      event:
+        hvAmount: 500
+        hvCountry: US
+        hvCustomerType: premium
+      expect: false
+
+- metadata:
+    id: high-value-us
+    description: High value US transactions
+  expression: hvusAmount > 1000 && hvusCountry == "US"
+  tests:
+    - name: matches high value US premium
+      event:
+        hvusAmount: 1500
+        hvusCountry: US
+        hvusCustomerType: premium
+      expect: true
+    - name: matches high value US regular
+      event:
+        hvusAmount: 1500
+        hvusCountry: US
+        hvusCustomerType: regular
+      expect: true
+    - name: does not match low value US
+      event:
+        hvusAmount: 500
+        hvusCountry: US
+        hvusCustomerType: premium
+      expect: false
+
+- metadata:
+    id: high-value-premium
+    description: High value premium customer transactions
+  expression: hvpAmount > 1000 && hvpCustomerType == "premium"
+  tests:
+    - name: matches high value US premium
+      event:
+        hvpAmount: 1500
+        hvpCountry: US
+        hvpCustomerType: premium
+      expect: true
+    - name: does not match high value regular
+      event:
+        hvpAmount: 1500
+        hvpCountry: US
+        hvpCustomerType: regular
+      expect: false
+    - name: does not match low value premium
+      event:
+        hvpAmount: 500
+        hvpCountry: US
+        hvpCustomerType: premium
+      expect: false
+
+- metadata:
+    id: any-us
+    description: Any US transactions
+  expression: ausCountry == "US"
+  tests:
+    - name: matches high value US premium
+      event:
+        ausAmount: 1500
+        ausCountry: US
+        ausCustomerType: premium
+      expect: true
+    - name: matches high value US regular
+      event:
+        ausAmount: 1500
+        ausCountry: US
+        ausCustomerType: regular
+      expect: true
+    - name: matches low value US premium
+      event:
+        ausAmount: 500
+        ausCountry: US
+        ausCustomerType: premium
+      expect: true
+
+- metadata:
+    id: any-premium
+    description: Any premium customer transactions
+  expression: apCustomerType == "premium"
+  tests:
+    - name: matches high value US premium
+      event:
+        apAmount: 1500
+        apCountry: US
+        apCustomerType: premium
+      expect: true
+    - name: does not match high value US regular
+      event:
+        apAmount: 1500
+        apCountry: US
+        apCustomerType: regular
+      expect: false
+    - name: matches low value US premium
+      event:
+        apAmount: 500
+        apCountry: US
+        apCustomerType: premium
+      expect: true
+
+# TestMultipleRules_ConflictingConditions - Rules with conflicting/mutually exclusive conditions
+- metadata:
+    id: low-value
+    description: Low value transactions (less than 100)
+  expression: lowAmount < 100
+  tests:
+    - name: matches amount 50
+      event:
+        lowAmount: 50
+        lowStatus: active
+      expect: true
+    - name: does not match amount 500
+      event:
+        lowAmount: 500
+        lowStatus: active
+      expect: false
+    - name: does not match amount 2000
+      event:
+        lowAmount: 2000
+        lowStatus: inactive
+      expect: false
+
+- metadata:
+    id: medium-value
+    description: Medium value transactions (100-999)
+  expression: mediumAmount >= 100 && mediumAmount < 1000
+  tests:
+    - name: does not match amount 50
+      event:
+        mediumAmount: 50
+        mediumStatus: active
+      expect: false
+    - name: matches amount 500
+      event:
+        mediumAmount: 500
+        mediumStatus: active
+      expect: true
+    - name: does not match amount 2000
+      event:
+        mediumAmount: 2000
+        mediumStatus: inactive
+      expect: false
+
+- metadata:
+    id: high-value-range
+    description: High value transactions (1000+)
+  expression: highAmount >= 1000
+  tests:
+    - name: does not match amount 50
+      event:
+        highAmount: 50
+        highStatus: active
+      expect: false
+    - name: does not match amount 500
+      event:
+        highAmount: 500
+        highStatus: active
+      expect: false
+    - name: matches amount 2000
+      event:
+        highAmount: 2000
+        highStatus: inactive
+      expect: true
+
+- metadata:
+    id: status-active
+    description: Active status
+  expression: activeStatus == "active"
+  tests:
+    - name: matches active status
+      event:
+        activeAmount: 50
+        activeStatus: active
+      expect: true
+    - name: does not match inactive status
+      event:
+        activeAmount: 2000
+        activeStatus: inactive
+      expect: false
+    - name: does not match pending status
+      event:
+        activeAmount: 500
+        activeStatus: pending
+      expect: false
+
+- metadata:
+    id: status-inactive
+    description: Inactive status
+  expression: inactiveStatus == "inactive"
+  tests:
+    - name: does not match active status
+      event:
+        inactiveAmount: 50
+        inactiveStatus: active
+      expect: false
+    - name: matches inactive status
+      event:
+        inactiveAmount: 2000
+        inactiveStatus: inactive
+      expect: true
+    - name: does not match pending status
+      event:
+        inactiveAmount: 500
+        inactiveStatus: pending
+      expect: false
+
+- metadata:
+    id: status-pending
+    description: Pending status
+  expression: pendingStatus == "pending"
+  tests:
+    - name: does not match active status
+      event:
+        pendingAmount: 50
+        pendingStatus: active
+      expect: false
+    - name: does not match inactive status
+      event:
+        pendingAmount: 2000
+        pendingStatus: inactive
+      expect: false
+    - name: matches pending status
+      event:
+        pendingAmount: 500
+        pendingStatus: pending
+      expect: true
+
+# TestMultipleRules_EvaluationOrderIndependence - Tests that rule order doesn't affect results
+- metadata:
+    id: rule-a
+    description: Value greater than 10
+  expression: valueA > 10
+  tests:
+    - name: matches value 50
+      event:
+        valueA: 50
+      expect: true
+    - name: does not match value 5
+      event:
+        valueA: 5
+      expect: false
+
+- metadata:
+    id: rule-b
+    description: Value less than 100
+  expression: valueB < 100
+  tests:
+    - name: matches value 50
+      event:
+        valueB: 50
+      expect: true
+    - name: matches value 5
+      event:
+        valueB: 5
+      expect: true
+
+- metadata:
+    id: rule-c
+    description: Value equals 50
+  expression: valueC == 50
+  tests:
+    - name: matches value 50
+      event:
+        valueC: 50
+      expect: true
+    - name: does not match value 5
+      event:
+        valueC: 5
+      expect: false
+
+# TestMultipleRules_DifferentComplexity - Rules with varying complexity levels
+- metadata:
+    id: simple
+    description: Simple equality check
+  expression: simpleA == 1
+  tests:
+    - name: matches simple and medium conditions
+      event:
+        simpleA: 1
+        simpleB: 5
+      expect: true
+    - name: does not match when a is not 1
+      event:
+        simpleA: 10
+        simpleB: 20
+        simpleC: 1
+        simpleD: test
+        simpleThreshold: 5
+        simpleTotal: 1500
+        simpleItems:
+          - value: 100
+            status: active
+      expect: false
+
+- metadata:
+    id: medium
+    description: Medium complexity with AND condition
+  expression: mediumA > 0 && mediumB < 10
+  tests:
+    - name: matches when a=1 and b=5
+      event:
+        mediumA: 1
+        mediumB: 5
+      expect: true
+    - name: does not match when b >= 10
+      event:
+        mediumA: 10
+        mediumB: 20
+        mediumC: 1
+        mediumD: test
+        mediumThreshold: 5
+        mediumTotal: 1500
+        mediumItems:
+          - value: 100
+            status: active
+      expect: false
+
+- metadata:
+    id: complex
+    description: Complex arithmetic and string comparison
+  expression: (complexA + complexB) * complexC > 100 && complexD == "test"
+  tests:
+    - name: matches when (a+b)*c > 100 and d='test'
+      event:
+        complexA: 1
+        complexB: 5
+        complexC: 50
+        complexD: test
+        complexE: normal
+        complexThreshold: 50
+        complexTotal: 1500
+        complexName: Alice
+        complexItems:
+          - value: 100
+            status: active
+        complexUsers:
+          - age: 25
+          - age: 30
+      expect: true
+    - name: does not match when arithmetic fails
+      event:
+        complexA: 10
+        complexB: 20
+        complexC: 1
+        complexD: test
+        complexThreshold: 5
+        complexTotal: 1500
+        complexItems:
+          - value: 100
+            status: active
+      expect: false
+
+- metadata:
+    id: very-complex
+    description: Complex with quantifier forSome
+  expression: forSome("veryItems", "item", item.value > veryThreshold && item.status == "active") && veryTotal > 1000
+  tests:
+    - name: matches when conditions met
+      event:
+        veryA: 1
+        veryB: 5
+        veryC: 50
+        veryD: test
+        veryE: normal
+        veryThreshold: 50
+        veryTotal: 1500
+        veryName: Alice
+        veryItems:
+          - value: 100
+            status: active
+        veryUsers:
+          - age: 25
+          - age: 30
+      expect: true
+    - name: matches with simpler event
+      event:
+        veryA: 10
+        veryB: 20
+        veryC: 1
+        veryD: test
+        veryThreshold: 5
+        veryTotal: 1500
+        veryItems:
+          - value: 100
+            status: active
+      expect: true
+    - name: does not match when total too low
+      event:
+        veryA: 1
+        veryB: 5
+        veryThreshold: 50
+        veryTotal: 500
+        veryItems:
+          - value: 100
+            status: active
+      expect: false
+
+- metadata:
+    id: ultra-complex
+    description: Ultra complex with multiple operations and quantifiers
+  expression: ((ultraA + ultraB * ultraC) / ultraD > 10 || ultraE == "special") && forAll("ultraUsers", "user", user.age >= 18) && regexpMatch("^[A-Z]", ultraName)
+  tests:
+    - name: may match complex scenario
+      event:
+        ultraA: 1
+        ultraB: 5
+        ultraC: 50
+        ultraD: test
+        ultraE: normal
+        ultraThreshold: 50
+        ultraTotal: 1500
+        ultraName: Alice
+        ultraItems:
+          - value: 100
+            status: active
+        ultraUsers:
+          - age: 25
+          - age: 30
+      expect: false
+    - name: matches when e is special
+      event:
+        ultraA: 1
+        ultraB: 5
+        ultraC: 50
+        ultraD: 1
+        ultraE: special
+        ultraName: Bob
+        ultraUsers:
+          - age: 25
+          - age: 30
+      expect: true
+
+# TestMultipleRules_SharedSubexpressions - Tests CSE (Common Sub-Expression elimination)
+- metadata:
+    id: expr-1
+    description: Sum greater than 100
+  expression: exprA1 + exprB1 > 100
+  tests:
+    - name: matches when sum is 150
+      event:
+        exprA1: 100
+        exprB1: 50
+        exprC1: 10
+      expect: true
+    - name: does not match when sum is 50
+      event:
+        exprA1: 30
+        exprB1: 20
+        exprC1: 10
+      expect: false
+
+- metadata:
+    id: expr-2
+    description: Sum less than 200
+  expression: exprA2 + exprB2 < 200
+  tests:
+    - name: matches when sum is 150
+      event:
+        exprA2: 100
+        exprB2: 50
+        exprC2: 10
+      expect: true
+    - name: does not match when sum is 250
+      event:
+        exprA2: 200
+        exprB2: 50
+        exprC2: 10
+      expect: false
+
+- metadata:
+    id: expr-3
+    description: Sum times c greater than 1000
+  expression: (exprA3 + exprB3) * exprC3 > 1000
+  tests:
+    - name: matches when (100+50)*10 = 1500 > 1000
+      event:
+        exprA3: 100
+        exprB3: 50
+        exprC3: 10
+      expect: true
+    - name: does not match when (30+20)*10 = 500 < 1000
+      event:
+        exprA3: 30
+        exprB3: 20
+        exprC3: 10
+      expect: false
+
+- metadata:
+    id: expr-4
+    description: Sum equals 150
+  expression: exprA4 + exprB4 == 150
+  tests:
+    - name: matches when sum is exactly 150
+      event:
+        exprA4: 100
+        exprB4: 50
+        exprC4: 10
+      expect: true
+    - name: does not match when sum is 50
+      event:
+        exprA4: 30
+        exprB4: 20
+        exprC4: 10
+      expect: false
+
+- metadata:
+    id: expr-5
+    description: Sum not equal to 0
+  expression: exprA5 + exprB5 != 0
+  tests:
+    - name: matches when sum is 150
+      event:
+        exprA5: 100
+        exprB5: 50
+        exprC5: 10
+      expect: true
+    - name: matches when sum is 50
+      event:
+        exprA5: 30
+        exprB5: 20
+        exprC5: 10
+      expect: true
+    - name: does not match when sum is 0
+      event:
+        exprA5: 0
+        exprB5: 0
+        exprC5: 10
+      expect: false
+
+# TestMultipleRules_RuleInteractionWithQuantifiers - Multiple rules with quantifiers
+- metadata:
+    id: all-valid
+    description: All items are valid
+  expression: forAll("validItems", "item", item.valid == true)
+  tests:
+    - name: matches when all items valid and in stock
+      event:
+        validItemCount: 10
+        validItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: true
+          - valid: true
+            price: 50
+            inStock: true
+      expect: true
+    - name: matches with mixed stock status but all valid
+      event:
+        validItemCount: 10
+        validItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: false
+      expect: true
+    - name: does not match when item is invalid
+      event:
+        validItemCount: 10
+        validItems:
+          - valid: false
+            price: 150
+            inStock: true
+      expect: false
+
+- metadata:
+    id: some-expensive
+    description: Some items are expensive (price > 100)
+  expression: forSome("expensiveItems", "item", item.price > 100)
+  tests:
+    - name: matches when items have prices over 100
+      event:
+        expensiveItemCount: 10
+        expensiveItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: true
+          - valid: true
+            price: 50
+            inStock: true
+      expect: true
+    - name: matches with mixed stock but expensive items
+      event:
+        expensiveItemCount: 10
+        expensiveItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: false
+      expect: true
+    - name: does not match when all items cheap
+      event:
+        expensiveItemCount: 10
+        expensiveItems:
+          - valid: true
+            price: 50
+            inStock: true
+      expect: false
+
+- metadata:
+    id: all-instock
+    description: All items are in stock
+  expression: forAll("instockItems", "item", item.inStock == true)
+  tests:
+    - name: matches when all items in stock
+      event:
+        instockItemCount: 10
+        instockItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: true
+          - valid: true
+            price: 50
+            inStock: true
+      expect: true
+    - name: does not match with mixed stock status
+      event:
+        instockItemCount: 10
+        instockItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: false
+      expect: false
+
+- metadata:
+    id: some-outofstock
+    description: Some items are out of stock
+  expression: forSome("outofstockItems", "item", item.inStock == false)
+  tests:
+    - name: does not match when all items in stock
+      event:
+        outofstockItemCount: 10
+        outofstockItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: true
+          - valid: true
+            price: 50
+            inStock: true
+      expect: false
+    - name: matches with mixed stock status
+      event:
+        outofstockItemCount: 10
+        outofstockItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: false
+      expect: true
+
+- metadata:
+    id: count-check
+    description: Item count greater than 5
+  expression: countCheckItemCount > 5
+  tests:
+    - name: matches when itemCount is 10
+      event:
+        countCheckItemCount: 10
+        countCheckItems:
+          - valid: true
+            price: 150
+            inStock: true
+          - valid: true
+            price: 200
+            inStock: true
+          - valid: true
+            price: 50
+            inStock: true
+      expect: true
+    - name: does not match when itemCount is 3
+      event:
+        countCheckItemCount: 3
+        countCheckItems:
+          - valid: true
+            price: 150
+            inStock: true
+      expect: false
+
+# TestMultipleRules_EmptyEventHandling - How multiple rules handle empty events
+- metadata:
+    id: null-check
+    description: Value is null
+  expression: nullCheckField == null
+  tests:
+    - name: matches empty event
+      event: {}
+      expect: true
+    - name: does not match when value exists
+      event:
+        nullCheckField: 10
+      expect: false
+
+- metadata:
+    id: not-null-check
+    description: Value is not null
+  expression: notNullCheckField != null
+  tests:
+    - name: does not match empty event
+      event: {}
+      expect: false
+    - name: matches when value exists
+      event:
+        notNullCheckField: 10
+      expect: true
+
+- metadata:
+    id: exists-check
+    description: Value greater than 0
+  expression: existsCheckValue > 0
+  tests:
+    - name: does not match empty event
+      event: {}
+      expect: false
+    - name: matches when value is positive
+      event:
+        existsCheckValue: 10
+      expect: true
+
+- metadata:
+    id: always-true
+    description: Always true expression
+  expression: 1 == 1
+  tests:
+    - name: matches empty event
+      event: {}
+      expect: true
+    - name: matches any event
+      event:
+        alwaysTrueValue: 10
+        alwaysTrueName: test
+      expect: true
+
+- metadata:
+    id: string-check
+    description: Name equals default
+  expression: stringCheckName == "default"
+  tests:
+    - name: does not match empty event
+      event: {}
+      expect: false
+    - name: matches when name is default
+      event:
+        stringCheckName: default
+      expect: true
+    - name: does not match when name is different
+      event:
+        stringCheckName: test
+      expect: false

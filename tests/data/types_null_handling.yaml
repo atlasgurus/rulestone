@@ -1,0 +1,453 @@
+# Null Handling Test Cases
+# This file contains comprehensive tests for null value handling across different scenarios
+
+# === Null Handling in Comparisons ===
+
+- metadata:
+    id: null-equality
+    description: Test null behavior in equality comparison
+  expression: null_eq_value == 0
+  tests:
+    - name: missing field treated as null
+      event:
+        null_eq_other: data
+      expect: false
+      description: Missing 'null_eq_value' field should be treated as null, not equal to 0
+    - name: explicit null field
+      event:
+        null_eq_value: null
+      expect: false
+      description: Explicit null value should not equal 0
+    - name: zero value vs null
+      event:
+        null_eq_value: 0
+      expect: true
+      description: Zero should be different from null and match the comparison
+
+- metadata:
+    id: null-inequality
+    description: Test null behavior in inequality comparison
+  expression: null_neq_value != 0
+  tests:
+    - name: missing field treated as null
+      event:
+        null_neq_other: data
+      expect: true
+      description: Missing 'null_neq_value' field (null) should be not equal to 0
+    - name: explicit null field
+      event:
+        null_neq_value: null
+      expect: true
+      description: Explicit null value should be not equal to 0
+    - name: zero value vs null
+      event:
+        null_neq_value: 0
+      expect: false
+      description: Zero should not match inequality
+
+- metadata:
+    id: null-greater
+    description: Test null behavior in greater than comparison
+  expression: null_gt_value > 0
+  tests:
+    - name: missing field treated as null
+      event:
+        null_gt_other: data
+      expect: false
+      description: Missing 'null_gt_value' field should be treated as null, not greater than 0
+    - name: explicit null field
+      event:
+        null_gt_value: null
+      expect: false
+      description: Explicit null value should not be greater than 0
+    - name: zero value vs null
+      event:
+        null_gt_value: 0
+      expect: false
+      description: Zero is not greater than 0
+
+- metadata:
+    id: null-less
+    description: Test null behavior in less than comparison
+  expression: null_lt_value < 0
+  tests:
+    - name: missing field treated as null
+      event:
+        null_lt_other: data
+      expect: false
+      description: Missing 'null_lt_value' field should be treated as null, not less than 0
+    - name: explicit null field
+      event:
+        null_lt_value: null
+      expect: false
+      description: Explicit null value should not be less than 0
+    - name: zero value vs null
+      event:
+        null_lt_value: 0
+      expect: false
+      description: Zero is not less than 0
+
+# === Null Handling in Logical Operations ===
+
+- metadata:
+    id: null-and-true
+    description: Test null in AND operation with true condition
+  expression: and_true_value > 0 && and_true_other == "yes"
+  tests:
+    - name: null AND true
+      event:
+        and_true_other: yes
+      expect: false
+      description: Null value in AND with true condition should be false
+
+- metadata:
+    id: null-or-true
+    description: Test null in OR operation with true condition
+  expression: or_true_value > 0 || or_true_other == "yes"
+  tests:
+    - name: null OR true
+      event:
+        or_true_other: yes
+      expect: true
+      description: Null value in OR with true condition (OR should short-circuit to true)
+
+- metadata:
+    id: null-and-false
+    description: Test null in AND operation with false condition
+  expression: and_false_value > 0 && and_false_other == "no"
+  tests:
+    - name: null AND false
+      event:
+        and_false_other: no
+      expect: false
+      description: Null value in AND with false condition (AND should short-circuit to false)
+
+- metadata:
+    id: null-or-false
+    description: Test null in OR operation with false condition
+  expression: or_false_value > 0 || or_false_other == "no"
+  tests:
+    - name: null OR false
+      event:
+        or_false_other: yes
+      expect: false
+      description: Null value in OR with false condition should be false
+
+# === Null Handling in Arithmetic Operations ===
+
+- metadata:
+    id: null-addition
+    description: Test null in addition operation
+  expression: add_value1 + add_value2 > 0
+  tests:
+    - name: one null operand in addition
+      event:
+        add_value2: 10
+      expect: false
+      description: null + 10 should not be greater than 0
+    - name: both null operands in addition
+      event:
+        add_dummy: dummy
+      expect: false
+      description: null + null should not be greater than 0
+
+- metadata:
+    id: null-multiplication
+    description: Test null in multiplication operation
+  expression: mul_value1 * mul_value2 > 0
+  tests:
+    - name: null in multiplication
+      event:
+        mul_value2: 5
+      expect: false
+      description: null * 5 should not be greater than 0
+
+- metadata:
+    id: null-with-constant
+    description: Test null with constant in arithmetic
+  expression: const_value + 10 > 5
+  tests:
+    - name: null plus constant
+      event:
+        const_dummy: dummy
+      expect: false
+      description: null + 10 should not be greater than 5
+
+# === Null Handling in Quantifiers ===
+
+- metadata:
+    id: forsome-null-array
+    description: Test forSome with null array
+  expression: forSome("forsome_items", "forsome_item", forsome_item.forsome_value > 0)
+  tests:
+    - name: null array field
+      event:
+        forsome_other: data
+      expect: false
+      description: Missing forsome_items array (treated as null) should make forSome false
+    - name: explicit null array
+      event:
+        forsome_items: null
+      expect: false
+      description: Explicit null forsome_items array should make forSome false
+    - name: empty array
+      event:
+        forsome_items: []
+      expect: false
+      description: Empty array should make forSome false
+
+- metadata:
+    id: forall-null-array
+    description: Test forAll with null array
+  expression: forAll("forall_items", "forall_item", forall_item.forall_value < 100)
+  tests:
+    - name: null array field
+      event:
+        forall_other: data
+      expect: true
+      description: Missing forall_items array (treated as null) should make forAll true (vacuous truth)
+    - name: explicit null array
+      event:
+        forall_items: null
+      expect: true
+      description: Explicit null forall_items array should make forAll true (vacuous truth)
+    - name: empty array
+      event:
+        forall_items: []
+      expect: true
+      description: Empty array should make forAll true (vacuous truth)
+
+- metadata:
+    id: forsome-with-null-elements
+    description: Test forSome with array containing null elements
+  expression: forSome("forsome_elem_items", "forsome_elem_item", forsome_elem_item.forsome_elem_value > 10)
+  tests:
+    - name: array with null elements
+      event:
+        forsome_elem_items:
+          - forsome_elem_value: null
+          - forsome_elem_value: 20
+      expect: true
+      description: Array containing elements with null values - should match on element with value 20
+    - name: array with missing fields
+      event:
+        forsome_elem_items:
+          - forsome_elem_other: field
+          - forsome_elem_value: 15
+      expect: true
+      description: Array elements with missing value field - should match on element with value 15
+
+- metadata:
+    id: forall-with-null-elements
+    description: Test forAll with array containing null elements
+  expression: forAll("forall_elem_items", "forall_elem_item", forall_elem_item.forall_elem_value != 0)
+  tests:
+    - name: array with null elements
+      event:
+        forall_elem_items:
+          - forall_elem_value: null
+          - forall_elem_value: 20
+      expect: true
+      description: Array containing elements with null values - null != 0 should be true
+    - name: array with missing fields
+      event:
+        forall_elem_items:
+          - forall_elem_other: field
+          - forall_elem_value: 15
+      expect: true
+      description: Array elements with missing value field - null != 0 should be true
+
+# === Null Handling in String Operations ===
+
+- metadata:
+    id: string-equality
+    description: Test null in string equality
+  expression: str_eq_name == "test"
+  tests:
+    - name: null in string equality
+      event:
+        str_eq_other: field
+      expect: false
+      description: Missing str_eq_name field (null) compared to string should be false
+    - name: empty string vs null
+      event:
+        str_eq_name: ""
+      expect: false
+      description: Empty string should be different from null and not match "test"
+
+- metadata:
+    id: string-containsany
+    description: Test null in containsAny function
+  expression: containsAny(contains_name, "test")
+  tests:
+    - name: null in containsany
+      event:
+        contains_dummy: dummy
+      expect: false
+      description: Null value in containsAny function should be false
+    - name: empty string vs null
+      event:
+        contains_name: ""
+      expect: false
+      description: Empty string should not contain "test"
+
+- metadata:
+    id: regexp-match
+    description: Test null in regexpMatch function
+  expression: regexpMatch("^[a-z]+@[a-z]+\\.[a-z]+$", regexp_email)
+  tests:
+    - name: null in regexp
+      event:
+        regexp_dummy: dummy
+      expect: false
+      description: Null value in regexpMatch function should be false
+    - name: empty string vs null
+      event:
+        regexp_email: ""
+      expect: false
+      description: Empty string should not match email pattern
+
+# === Null Handling in Nested Fields ===
+
+- metadata:
+    id: nested-field-access
+    description: Test null in nested object access
+  expression: nested_user.nested_profile.nested_name == "test"
+  tests:
+    - name: missing parent object
+      event:
+        nested_other: data
+      expect: false
+      description: nested_user.nested_profile.nested_name when nested_user is missing should be false
+    - name: missing intermediate object
+      event:
+        nested_user:
+          nested_id: 123
+      expect: false
+      description: nested_user.nested_profile.nested_name when nested_profile is missing should be false
+    - name: missing leaf field
+      event:
+        nested_user:
+          nested_profile:
+            nested_email: test@example.com
+      expect: false
+      description: nested_user.nested_profile.nested_name when nested_name is missing should be false
+    - name: explicit null in path
+      event:
+        nested_user:
+          nested_profile: null
+      expect: false
+      description: nested_user.nested_profile.nested_name when nested_profile is explicit null should be false
+
+- metadata:
+    id: deep-nested-access
+    description: Test null in deep nested access
+  expression: data.level1.level2.level3.value > 0
+  tests:
+    - name: deep nesting all missing
+      event: {}
+      expect: false
+      description: data.level1.level2.level3.value when all missing should be false
+
+- metadata:
+    id: nested-with-fallback
+    description: Test nested access with OR fallback
+  expression: user.profile.age > 18 || user.guest == 1
+  tests:
+    - name: OR with null on left
+      event:
+        user:
+          guest: 1
+      expect: true
+      description: Null age but guest=1 (OR should match on right side)
+
+# === Null Handling in Mixed Scenarios ===
+
+- metadata:
+    id: complex-null-check
+    description: Test complex expression with null values
+  expression: (value1 > 0 && value2 < 100) || value3 == "fallback"
+  tests:
+    - name: partial data with fallback
+      event:
+        value3: fallback
+      expect: true
+      description: Null value1 and value2, but fallback matches on OR right side
+    - name: all fields null
+      event: {}
+      expect: false
+      description: All fields missing (all null) should be false
+
+- metadata:
+    id: arithmetic-with-null-check
+    description: Test arithmetic with null in complex expression
+  expression: (price * quantity) > 100 && discount < 20
+  tests:
+    - name: arithmetic with one null
+      event:
+        price: 50
+        discount: 10
+      expect: false
+      description: price * null > 100 (quantity missing) should be false
+
+- metadata:
+    id: quantifier-with-null-context
+    description: Test quantifier with null in context
+  expression: forSome("orders", "order", order.amount > total * 0.5)
+  tests:
+    - name: quantifier with null context
+      event:
+        orders:
+          - amount: 100
+      expect: false
+      description: forSome with null 'total' in condition should be false
+
+# === Null Handling in Type Coercion ===
+
+- metadata:
+    id: null-as-number
+    description: Test null coercion to number
+  expression: value + 0 == 0
+  tests:
+    - name: null coerced to number
+      event:
+        other: field
+      expect: false
+      description: null + 0 should not equal 0
+    - name: actual zero
+      event:
+        value: 0
+      expect: true
+      description: Real zero value should equal 0
+
+- metadata:
+    id: null-as-string
+    description: Test null coercion to string
+  expression: containsAny(text, "null")
+  tests:
+    - name: null coerced to string
+      event:
+        other: field
+      expect: false
+      description: Null should not contain 'null' as string
+    - name: actual null string
+      event:
+        text: contains null text
+      expect: true
+      description: String containing 'null' should match
+
+- metadata:
+    id: null-as-boolean
+    description: Test null coercion to boolean
+  expression: flag == 0
+  tests:
+    - name: null coerced to boolean
+      event:
+        other: field
+      expect: false
+      description: Null should not equal 0
+    - name: actual zero
+      event:
+        flag: 0
+      expect: true
+      description: Real zero value should equal 0

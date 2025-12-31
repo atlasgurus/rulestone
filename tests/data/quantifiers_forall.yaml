@@ -1,0 +1,247 @@
+- metadata:
+    id: forall-empty
+    description: ForAll with empty arrays (vacuous truth)
+  expression: forAll("emptyItems", "item", item.value > 100)
+  tests:
+    - name: empty array
+      event:
+        emptyItems: []
+      expect: true
+      description: Empty array - forAll should return true (vacuous truth)
+    - name: missing array field
+      event:
+        other: data
+      expect: false
+      description: Missing array field should not match
+
+- metadata:
+    id: forall-single
+    description: ForAll with single-element arrays
+  expression: forAll("singleItems", "item", item.value > 50)
+  tests:
+    - name: single element matches
+      event:
+        singleItems:
+          - value: 60
+      expect: true
+      description: Single element > 50 should match
+    - name: single element does not match
+      event:
+        singleItems:
+          - value: 40
+      expect: false
+      description: Single element <= 50 should not match
+
+- metadata:
+    id: forall-multi
+    description: ForAll with multiple elements
+  expression: forAll("multiItems", "item", item.value < 100)
+  tests:
+    - name: all elements match
+      event:
+        multiItems:
+          - value: 50
+          - value: 60
+          - value: 70
+      expect: true
+      description: All elements < 100 should match
+    - name: some elements match
+      event:
+        multiItems:
+          - value: 50
+          - value: 150
+          - value: 70
+      expect: false
+      description: One element >= 100, forAll should fail
+    - name: no elements match
+      event:
+        multiItems:
+          - value: 200
+          - value: 300
+          - value: 400
+      expect: false
+      description: All elements >= 100, forAll should fail
+    - name: first element fails
+      event:
+        multiItems:
+          - value: 150
+          - value: 50
+          - value: 60
+      expect: false
+      description: First element fails, forAll should stop
+    - name: last element fails
+      event:
+        multiItems:
+          - value: 50
+          - value: 60
+          - value: 150
+      expect: false
+      description: Last element fails, forAll should fail
+
+- metadata:
+    id: forall-and
+    description: ForAll with AND condition
+  expression: forAll("andItems", "item", item.price > 10 && item.quantity > 0)
+  tests:
+    - name: AND condition - all match
+      event:
+        andItems:
+          - price: 20
+            quantity: 5
+          - price: 30
+            quantity: 3
+      expect: true
+      description: All items have price > 10 AND quantity > 0
+    - name: AND condition - one fails
+      event:
+        andItems:
+          - price: 20
+            quantity: 0
+          - price: 30
+            quantity: 3
+      expect: false
+      description: One item has quantity = 0
+
+- metadata:
+    id: forall-or
+    description: ForAll with OR condition
+  expression: forAll("orItems", "item", item.category == "A" || item.category == "B")
+  tests:
+    - name: OR condition - all match
+      event:
+        orItems:
+          - category: A
+          - category: B
+          - category: A
+      expect: true
+      description: All items are category A or B
+    - name: OR condition - one fails
+      event:
+        orItems:
+          - category: A
+          - category: C
+      expect: false
+      description: One item is category C
+
+- metadata:
+    id: forall-not
+    description: ForAll with NOT condition
+  expression: forAll("notItems", "item", !(item.expired == 1))
+  tests:
+    - name: NOT condition - all match
+      event:
+        notItems:
+          - expired: 0
+          - expired: 0
+      expect: true
+      description: No items are expired
+    - name: NOT condition - one fails
+      event:
+        notItems:
+          - expired: 0
+          - expired: 1
+      expect: false
+      description: One item is expired
+
+- metadata:
+    id: forall-arithmetic
+    description: ForAll with arithmetic in conditions
+  expression: forAll("arithmeticItems", "item", item.price * item.quantity < 1000)
+  tests:
+    - name: all totals under limit
+      event:
+        arithmeticItems:
+          - price: 10
+            quantity: 50
+          - price: 20
+            quantity: 30
+      expect: true
+      description: All items - price * quantity < 1000
+    - name: one total over limit
+      event:
+        arithmeticItems:
+          - price: 10
+            quantity: 50
+          - price: 100
+            quantity: 20
+      expect: false
+      description: One item - 100 * 20 = 2000 >= 1000
+
+- metadata:
+    id: nested-forall
+    description: ForAll with nested forAll
+  expression: forAll("orders", "order", forAll("order.items", "item", item.price > 0))
+  tests:
+    - name: all nested arrays match
+      event:
+        orders:
+          - items:
+              - price: 10
+              - price: 20
+          - items:
+              - price: 15
+      expect: true
+      description: All orders have all items with price > 0
+    - name: one nested element fails
+      event:
+        orders:
+          - items:
+              - price: 10
+              - price: 0
+      expect: false
+      description: One item has price = 0, nested forAll fails
+
+- metadata:
+    id: forall-null
+    description: ForAll with null/missing fields
+  expression: forAll("nullItems", "item", item.value > 0)
+  tests:
+    - name: element with null value
+      event:
+        nullItems:
+          - value: null
+          - value: 10
+      expect: false
+      description: One element has null value
+    - name: element with missing field
+      event:
+        nullItems:
+          - other: field
+          - value: 10
+      expect: false
+      description: One element missing value field
+    - name: all elements null
+      event:
+        nullItems:
+          - value: null
+          - value: null
+      expect: false
+      description: All elements have null value
+
+- metadata:
+    id: forall-large
+    description: ForAll with large arrays
+  expression: forAll("largeItems", "item", item.value < 10000)
+  tests:
+    - name: large array all match
+      event:
+        largeItems:
+          - value: 0
+          - value: 100
+          - value: 500
+          - value: 1000
+          - value: 5000
+          - value: 9999
+      expect: true
+      description: Large array where all elements have value < 10000
+    - name: large array one fails
+      event:
+        largeItems:
+          - value: 0
+          - value: 100
+          - value: 500
+          - value: 20000
+          - value: 5000
+          - value: 9999
+      expect: false
+      description: Large array with one element having value >= 10000

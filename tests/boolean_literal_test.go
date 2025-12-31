@@ -47,12 +47,12 @@ func TestBooleanLiterals(t *testing.T) {
 		{
 			name:      "true literal matches",
 			event:     map[string]interface{}{"isActive": true},
-			expectIDs: []string{"true-literal"},
+			expectIDs: []string{"true-literal", "null-literal"}, // null-literal also matches (missingField is missing/null)
 		},
 		{
 			name:      "false literal matches",
 			event:     map[string]interface{}{"isDisabled": false},
-			expectIDs: []string{"false-literal"},
+			expectIDs: []string{"false-literal", "null-literal"}, // null-literal also matches (missingField is missing/null)
 		},
 		{
 			name:      "null literal matches",
@@ -62,12 +62,12 @@ func TestBooleanLiterals(t *testing.T) {
 		{
 			name:      "complex with true literal",
 			event:     map[string]interface{}{"status": "active", "verified": true},
-			expectIDs: []string{"true-comparison"},
+			expectIDs: []string{"true-comparison", "null-literal"}, // null-literal also matches (missingField is missing/null)
 		},
 		{
 			name:      "true literal doesn't match false",
 			event:     map[string]interface{}{"isActive": false},
-			expectIDs: []string{},
+			expectIDs: []string{"null-literal"}, // null-literal matches (missingField is missing/null)
 		},
 	}
 

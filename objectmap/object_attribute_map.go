@@ -54,8 +54,9 @@ func NewObjectAttributeMapper(config MapperConfig) *ObjectAttributeMapper {
 }
 
 type ObjectAttributeMap struct {
-	DictRec *AttrDictionaryRec
-	Values  []interface{}
+	DictRec       *AttrDictionaryRec
+	Values        []interface{}
+	OriginalEvent interface{} // Store original event for empty array detection
 }
 
 type PathSegment struct {
@@ -458,6 +459,7 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 func (mapper *ObjectAttributeMapper) MapObject(v interface{}, attrCallback func([]int)) *ObjectAttributeMap {
 	address := make([]int, 0, 20)
 	result := mapper.NewObjectAttributeMap()
+	result.OriginalEvent = v // Store original event
 	mapper.buildObjectMap("", v, result.Values, result.DictRec, attrCallback, address)
 	return result
 }
@@ -465,6 +467,17 @@ func (mapper *ObjectAttributeMapper) MapObject(v interface{}, attrCallback func(
 func (attrMap *ObjectAttributeMap) GetNumElementsAtAddress(address *AttributeAddress, frames []interface{}) (int, error) {
 	values, err := attrMap.GetAttributeByAddress(address.Address, frames[address.ParentParameterIndex])
 	if err != nil {
+		// If not found in mapped Values, check the original event for empty arrays
+		// This handles the case where an array exists but is empty
+		if attrMap.OriginalEvent != nil {
+			arrayValue := attrMap.getValueFromOriginalEvent(address.Path)
+			if arrayValue != nil {
+				kind := reflect.ValueOf(arrayValue).Kind()
+				if kind == reflect.Slice {
+					return len(arrayValue.([]interface{})), nil
+				}
+			}
+		}
 		return 0, err
 	} else {
 		kind := reflect.ValueOf(values).Kind()
@@ -476,4 +489,33 @@ func (attrMap *ObjectAttributeMap) GetNumElementsAtAddress(address *AttributeAdd
 				kind, attrMap.DictRec.AddressToFullPath(address.Address))
 		}
 	}
+}
+
+// getValueFromOriginalEvent navigates the original event using a path like "items[]"
+func (attrMap *ObjectAttributeMap) getValueFromOriginalEvent(path string) interface{} {
+	// Strip "[]" suffix if present
+	cleanPath := strings.TrimSuffix(path, "[]")
+	if cleanPath == "" {
+		return attrMap.OriginalEvent
+	}
+
+	// Navigate the path segments
+	current := attrMap.OriginalEvent
+	segments := strings.Split(cleanPath, ".")
+	for _, segment := range segments {
+		if current == nil {
+			return nil
+		}
+
+		// Handle map access
+		switch v := current.(type) {
+		case map[string]interface{}:
+			current = v[segment]
+		case map[interface{}]interface{}:
+			current = v[segment]
+		default:
+			return nil
+		}
+	}
+	return current
 }

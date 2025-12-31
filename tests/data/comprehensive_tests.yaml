@@ -173,7 +173,8 @@
     - name: empty array
       event:
         items: []
-      expect: false
+      expect: true
+      description: Empty array - forAll returns true (vacuous truth)
 
 - metadata:
     id: null-handling

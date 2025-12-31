@@ -83,6 +83,9 @@ type CompareCondRepo struct {
 	CondToCategoryMap            *hashmap.Map[condition.Condition, *hashmap.Map[condition.Operand, []condition.Operand]]
 	CondToStringMatcher          *hashmap.Map[condition.Condition, *StringMatcher]
 	EvalCategoryRecs             []*EvalCategoryRec
+	// Categories that must be evaluated even if their attributes aren't in the event
+	// (e.g., null checks like "field == null", constant expressions like "1 == 1")
+	AlwaysEvaluateCategories     *hashset.Set[*EvalCategoryRec]
 	RuleRepo                     condition.RuleRepo
 	ObjectAttributeMapper        *objectmap.ObjectAttributeMapper
 	CondFactory                  *condition.Factory
@@ -207,6 +210,22 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 			}
 			if yKind == condition.ErrorOperandKind {
 				return Y
+			}
+
+			// Special handling for null comparisons
+			// Null should not equal any non-null value
+			if xKind == condition.NullOperandKind || yKind == condition.NullOperandKind {
+				bothNull := xKind == condition.NullOperandKind && yKind == condition.NullOperandKind
+				switch compOp {
+				case condition.CompareEqualOp:
+					return condition.NewBooleanOperand(bothNull)
+				case condition.CompareNotEqualOp:
+					return condition.NewBooleanOperand(!bothNull)
+				case condition.CompareGreaterOp, condition.CompareGreaterOrEqualOp,
+					condition.CompareLessOp, condition.CompareLessOrEqualOp:
+					// Null is not orderable, all ordering comparisons return false
+					return condition.NewBooleanOperand(false)
+				}
 			}
 
 			// Convert toward the higher kind, e.g. int -> float -> bool -> string
@@ -532,6 +551,20 @@ func (repo *CompareCondRepo) processCompareCondition(
 		evalCatRec.Eval = eval
 
 		repo.CondToCompareCondRecord.Put(compareCond, evalCatRec)
+
+		// Register categories that must always be evaluated:
+		// 1. Null checks: comparisons where one operand is null (field == null, field != null)
+		// 2. Constant expressions: comparisons with no event dependencies (1 == 1, true)
+		// Note: Only register if eval is not nil (processCompareEqualToConstCondition can return nil for duplicates)
+		if eval != nil {
+			isNullCheck := compareCond.LeftOperand.GetKind() == condition.NullOperandKind ||
+				compareCond.RightOperand.GetKind() == condition.NullOperandKind
+			hasNoEventDependencies := len(evalCatRec.AttrKeys) == 0
+
+			if isNullCheck || hasNoEventDependencies {
+				repo.AlwaysEvaluateCategories.Put(evalCatRec)
+			}
+		}
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
@@ -704,9 +737,16 @@ func (repo *CompareCondRepo) genEvalForAllCondition(
 			func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
 				numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
 				if err != nil {
-					return condition.NewErrorOperand(err)
+					// Array is missing/null - return false (rule doesn't apply to missing arrays)
+					return condition.NewBooleanOperand(false)
 				}
 
+				// Empty array - return true (vacuous truth: "all elements" in empty set satisfy any condition)
+				if numElements == 0 {
+					return condition.NewBooleanOperand(true)
+				}
+
+				// Non-empty array - evaluate condition for each element
 				parentsFrame := frames[arrayAddress.ParentParameterIndex]
 				currentAddressLen := len(arrayAddress.Address)
 				currentAddress := types.GetIntSlice()
@@ -756,6 +796,9 @@ func (repo *CompareCondRepo) processForAllCondition(
 		} else {
 			repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
 		}
+		// Add to AlwaysEvaluateCategories so it runs for empty arrays
+		// (just like field == null runs for missing fields)
+		repo.AlwaysEvaluateCategories.Put(evalCatRec)
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }

@@ -7,12 +7,12 @@
       event:
         emptyItems: []
       expect: true
-      description: Empty array - forAll should return true (vacuous truth)
+      description: Empty array - forAll returns true (vacuous truth)
     - name: missing array field
       event:
         other: data
       expect: false
-      description: Missing array field should not match
+      description: Missing array field should not match (rule doesn't apply)
 
 - metadata:
     id: forall-single

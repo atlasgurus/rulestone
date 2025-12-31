@@ -409,3 +409,112 @@ func BenchmarkManyRules(b *testing.B) {
 		_ = matches // Don't check count as multiple rules may match
 	}
 }
+
+// Benchmark null check performance (Bug #2 fix)
+func BenchmarkNullCheck(b *testing.B) {
+	repo := engine.NewRuleEngineRepo()
+	rules := `- metadata: {id: null-check}
+  expression: field == null`
+	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	if err != nil {
+		b.Fatalf("failed LoadRulesFromString: %v", err)
+	}
+
+	genFilter, err := engine.NewRuleEngine(repo)
+	if err != nil {
+		b.Fatalf("failed NewRuleEngine: %v", err)
+	}
+
+	event := map[string]interface{}{} // Missing field
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		matches := genFilter.MatchEvent(event)
+		if len(matches) != 1 {
+			b.Fatalf("unexpected match count: %d", len(matches))
+		}
+	}
+}
+
+// Benchmark constant expression performance (Bug #1 fix)
+func BenchmarkConstantExpression(b *testing.B) {
+	repo := engine.NewRuleEngineRepo()
+	rules := `- metadata: {id: constant-expr}
+  expression: 1 == 1`
+	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	if err != nil {
+		b.Fatalf("failed LoadRulesFromString: %v", err)
+	}
+
+	genFilter, err := engine.NewRuleEngine(repo)
+	if err != nil {
+		b.Fatalf("failed NewRuleEngine: %v", err)
+	}
+
+	event := map[string]interface{}{} // Empty event
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		matches := genFilter.MatchEvent(event)
+		if len(matches) != 1 {
+			b.Fatalf("unexpected match count: %d", len(matches))
+		}
+	}
+}
+
+// Benchmark forAll with empty array (Bug #3 fix)
+func BenchmarkForAllEmptyArray(b *testing.B) {
+	repo := engine.NewRuleEngineRepo()
+	rules := `- metadata: {id: forall-empty}
+  expression: forAll("items", "item", item.value > 100)`
+	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	if err != nil {
+		b.Fatalf("failed LoadRulesFromString: %v", err)
+	}
+
+	genFilter, err := engine.NewRuleEngine(repo)
+	if err != nil {
+		b.Fatalf("failed NewRuleEngine: %v", err)
+	}
+
+	event := map[string]interface{}{"items": []interface{}{}} // Empty array
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		matches := genFilter.MatchEvent(event)
+		if len(matches) != 1 {
+			b.Fatalf("unexpected match count: %d", len(matches))
+		}
+	}
+}
+
+// Benchmark forAll with non-empty array (ensure no regression)
+func BenchmarkForAllNonEmptyArray(b *testing.B) {
+	repo := engine.NewRuleEngineRepo()
+	rules := `- metadata: {id: forall-nonempty}
+  expression: forAll("items", "item", item.value > 50)`
+	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	if err != nil {
+		b.Fatalf("failed LoadRulesFromString: %v", err)
+	}
+
+	genFilter, err := engine.NewRuleEngine(repo)
+	if err != nil {
+		b.Fatalf("failed NewRuleEngine: %v", err)
+	}
+
+	// Array with 10 matching elements
+	items := make([]interface{}, 10)
+	for i := 0; i < 10; i++ {
+		items[i] = map[string]interface{}{"value": 100}
+	}
+	event := map[string]interface{}{"items": items}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		matches := genFilter.MatchEvent(event)
+		if len(matches) != 1 {
+			b.Fatalf("unexpected match count: %d", len(matches))
+		}
+	}
+}

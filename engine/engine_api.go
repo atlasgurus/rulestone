@@ -411,6 +411,7 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 		CondToCategoryMap:            types.NewHashMap[condition.Condition, *hashmap.Map[condition.Operand, []condition.Operand]](),
 		CondToStringMatcher:          types.NewHashMap[condition.Condition, *StringMatcher](),
 		AttributeToCompareCondRecord: make(map[string]*hashset.Set[*EvalCategoryRec]),
+		AlwaysEvaluateCategories:     types.NewHashSet[*EvalCategoryRec](),
 		ObjectAttributeMapper:        objectmap.NewObjectAttributeMapper(repo),
 		CondFactory:                  condition.NewFactory(),
 		ctx:                          repo.ctx,
@@ -457,7 +458,7 @@ func NewRuleEngine(repo *RuleEngineRepo) (*RuleEngine, error) {
 		// TODO implement option passing
 		OrOptimizationFreqThreshold:  0,
 		AndOptimizationFreqThreshold: 1,
-		Verbose:                      true,
+		Verbose:                      false,
 	})
 
 	return &RuleEngine{repo: repo, catEngine: catEngine, compCondRepo: compCondRepo}, nil
@@ -477,6 +478,12 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 					})
 			}
 		})
+
+	// Also evaluate categories that must always run (e.g., null checks, constant expressions, forAll)
+	f.compCondRepo.AlwaysEvaluateCategories.Each(func(catEvaluator *EvalCategoryRec) {
+		matchingCompareCondRecords.Put(catEvaluator)
+	})
+
 	var eventCategories []types.Category
 	var FrameStack = [20]interface{}{event.Values}
 	matchingCompareCondRecords.Each(func(catEvaluator *EvalCategoryRec) {

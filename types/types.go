@@ -145,6 +145,7 @@ func SliceToBoolMap[T comparable](s []T) map[T]bool {
 }
 
 type ErrorLog struct {
+	mu     sync.Mutex
 	errors []error
 }
 
@@ -164,6 +165,8 @@ func (ctx *AppContext) NewError(err string) error {
 }
 
 func (errLog *ErrorLog) LogError(err error) {
+	errLog.mu.Lock()
+	defer errLog.mu.Unlock()
 	errLog.errors = append(errLog.errors, err)
 }
 
@@ -173,6 +176,8 @@ func (ctx *AppContext) Errorf(format string, a ...any) error {
 }
 
 func (errLog *ErrorLog) PrintErrors() {
+	errLog.mu.Lock()
+	defer errLog.mu.Unlock()
 	for _, err := range errLog.errors {
 		fmt.Println(err)
 	}

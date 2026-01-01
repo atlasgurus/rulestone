@@ -29,7 +29,7 @@ type ObjectAttributeMapper struct {
 	Ctx         *types.AppContext
 	Config      MapperConfig
 	objectPool  *sync.Pool
-	//mu          sync.Mutex
+	mu          sync.Mutex
 	// Global list to keep track of all allocated *ObjectAttributeMap
 	objectList []*ObjectAttributeMap
 }
@@ -390,22 +390,22 @@ func (mapper *ObjectAttributeMapper) NewObjectAttributeMap() *ObjectAttributeMap
 	}
 
 	// Add the newly created object to the global list
-	//mapper.mu.Lock()
+	mapper.mu.Lock()
 	mapper.objectList = append(mapper.objectList, obj)
-	//mapper.mu.Unlock()
+	mapper.mu.Unlock()
 
 	return obj
 }
 
 func (mapper *ObjectAttributeMapper) FreeObjects() {
 	// Return all allocated objects to the pool
-	//mapper.mu.Lock()
+	mapper.mu.Lock()
 	for _, obj := range mapper.objectList {
 		mapper.objectPool.Put(obj)
 	}
 	// Clear the global list
 	mapper.objectList = nil
-	//mapper.mu.Unlock()
+	mapper.mu.Unlock()
 }
 
 func (mapper *ObjectAttributeMapper) buildObjectMap(

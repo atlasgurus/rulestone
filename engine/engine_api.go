@@ -3,6 +3,13 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+
 	"github.com/atlasgurus/rulestone/cateng"
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/objectmap"
@@ -10,11 +17,6 @@ import (
 	"github.com/zyedidia/generic/hashmap"
 	"github.com/zyedidia/generic/hashset"
 	"gopkg.in/yaml.v3"
-	"io"
-	"math"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 type ExternalRule struct {
@@ -487,7 +489,7 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 	var eventCategories []types.Category
 	var FrameStack = [20]interface{}{event.Values}
 	matchingCompareCondRecords.Each(func(catEvaluator *EvalCategoryRec) {
-		f.Metrics.NumCatEvals++
+		atomic.AddUint64(&f.Metrics.NumCatEvals, 1)
 		result := catEvaluator.Evaluate(event, FrameStack[:])
 		switch r := result.(type) {
 		case condition.ErrorOperand:

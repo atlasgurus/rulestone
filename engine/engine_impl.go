@@ -1379,15 +1379,28 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 
 		switch n.Op {
 		case token.ADD, token.SUB, token.MUL, token.QUO:
+			// Include operator token in args to distinguish a+b from a-b, a*b, a/b in hash
+			opOperand := condition.NewStringOperand(n.Op.String())
 			return repo.CondFactory.NewExprOperand(
 				func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
-					xVal := xOperand.Evaluate(event, frames).Convert(condition.FloatOperandKind)
+					xVal := xOperand.Evaluate(event, frames)
+					// Handle null values - arithmetic with null returns null (not error)
+					// Let comparison operators handle null according to their semantics
+					if xVal.GetKind() == condition.NullOperandKind {
+						return condition.NewNullOperand(nil)
+					}
+					xVal = xVal.Convert(condition.FloatOperandKind)
 					if xVal.GetKind() == condition.ErrorOperandKind {
 						return xVal
 					}
 					lv := float64(xVal.(condition.FloatOperand))
 
-					yVal := yOperand.Evaluate(event, frames).Convert(condition.FloatOperandKind)
+					yVal := yOperand.Evaluate(event, frames)
+					// Handle null values - arithmetic with null returns null (not error)
+					if yVal.GetKind() == condition.NullOperandKind {
+						return condition.NewNullOperand(nil)
+					}
+					yVal = yVal.Convert(condition.FloatOperandKind)
 					if yVal.GetKind() == condition.ErrorOperandKind {
 						return yVal
 					}
@@ -1401,11 +1414,14 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 					case token.MUL:
 						return condition.NewFloatOperand(lv * rv)
 					case token.QUO:
+						if rv == 0 {
+							return condition.NewErrorOperand(fmt.Errorf("division by zero"))
+						}
 						return condition.NewFloatOperand(lv / rv)
 					default:
 						return condition.NewErrorOperand(fmt.Errorf("unsupported operator: %s", n.Op.String()))
 					}
-				}, xOperand, yOperand)
+				}, opOperand, xOperand, yOperand)
 		case token.EQL:
 			return repo.genEvalForCompareOperands(condition.CompareEqualOp, xOperand, yOperand)
 		case token.LSS:
@@ -1571,7 +1587,7 @@ func funcRegexpMatch(repo *CompareCondRepo, n *ast.CallExpr, scope *ForEachScope
 			argString := string(arg.Convert(condition.StringOperandKind).(condition.StringOperand))
 			result := condition.NewBooleanOperand(re.MatchString(argString))
 			return result
-		}, argOperand) // operandKind as hash seed to avoid cache collisions
+		}, patternOperand, argOperand) // Include pattern in hash to distinguish different regexes
 }
 
 func (repo *CompareCondRepo) funcIsEqualToAny(n *ast.CallExpr, scope *ForEachScope) condition.Operand {

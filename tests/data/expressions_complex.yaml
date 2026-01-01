@@ -1,0 +1,592 @@
+# Deep nesting tests
+- metadata:
+    id: deep-parentheses
+    description: Deeply nested parentheses in arithmetic
+  expression: ((((a + b) * c) - d) / e) > 10
+  tests:
+    - name: deep arithmetic nesting
+      event:
+        a: 100
+        b: 10
+        c: 2
+        d: 20
+        e: 4
+      expect: true
+
+- metadata:
+    id: deep-logical-nesting
+    description: Deeply nested logical operators
+  expression: (((a == 1 && b == 2) || (c == 3 && d == 4)) && ((e == 5 || f == 6) && (g == 7 || h == 8)))
+  tests:
+    - name: all conditions true
+      event:
+        a: 1
+        b: 2
+        c: 3
+        d: 4
+        e: 5
+        f: 6
+        g: 7
+        h: 8
+      expect: true
+    - name: OR branch works
+      event:
+        a: 1
+        b: 99
+        c: 3
+        d: 4
+        e: 5
+        f: 6
+        g: 7
+        h: 8
+      expect: true
+
+- metadata:
+    id: mixed-deep-nesting
+    description: Mixed arithmetic and logical nesting
+  expression: (((x > 10 && y < 20) || (z >= 30 && w <= 40)) && ((a + b > 50) || (c - d < 10)))
+  tests:
+    - name: mixed nesting matches
+      event:
+        x: 15
+        y: 15
+        z: 35
+        w: 35
+        a: 30
+        b: 25
+        c: 5
+        d: 3
+      expect: true
+
+- metadata:
+    id: nested-arithmetic
+    description: Nested arithmetic with result comparison
+  expression: (a + (b * (c - (d / e)))) == result
+  tests:
+    - name: correct nested calculation
+      event:
+        a: 10
+        b: 5
+        c: 20
+        d: 10
+        e: 2
+        result: 85
+      expect: true
+    - name: incorrect result
+      event:
+        a: 10
+        b: 5
+        c: 20
+        d: 10
+        e: 2
+        result: 35
+      expect: false
+
+# Long expression chains
+- metadata:
+    id: long-arithmetic-chain
+    description: Long chain of additions
+  expression: longChainA + longChainB + longChainC + longChainD + longChainE + longChainF + longChainG + longChainH + longChainI + longChainJ == 55
+  tests:
+    - name: sum equals 55
+      event:
+        longChainA: 10
+        longChainB: 10
+        longChainC: 10
+        longChainD: 10
+        longChainE: 5
+        longChainF: 5
+        longChainG: 5
+        longChainH: 0
+        longChainI: 0
+        longChainJ: 0
+      expect: true
+    - name: sum not 55
+      event:
+        longChainA: 10
+        longChainB: 10
+        longChainC: 10
+        longChainD: 10
+        longChainE: 10
+        longChainF: 10
+        longChainG: 10
+        longChainH: 10
+        longChainI: 10
+        longChainJ: 10
+      expect: false
+
+- metadata:
+    id: long-logical-chain
+    description: Long chain of AND conditions
+  expression: a == 1 && b == 2 && c == 3 && d == 4 && e == 5 && f == 6 && g == 7 && h == 8
+  tests:
+    - name: all match
+      event:
+        a: 1
+        b: 2
+        c: 3
+        d: 4
+        e: 5
+        f: 6
+        g: 7
+        h: 8
+      expect: true
+    - name: one mismatch
+      event:
+        a: 1
+        b: 2
+        c: 3
+        d: 99
+        e: 5
+        f: 6
+        g: 7
+        h: 8
+      expect: false
+
+- metadata:
+    id: long-comparison-chain
+    description: Long chain of less-than comparisons
+  expression: a < b && b < c && c < d && d < e && e < f && f < g && g < h
+  tests:
+    - name: ascending chain
+      event:
+        a: 10
+        b: 20
+        c: 30
+        d: 40
+        e: 50
+        f: 60
+        g: 70
+        h: 80
+      expect: true
+    - name: not ascending
+      event:
+        a: 10
+        b: 20
+        c: 30
+        d: 25
+        e: 50
+        f: 60
+        g: 70
+        h: 80
+      expect: false
+
+- metadata:
+    id: long-mixed-chain
+    description: Long chain of mixed operations
+  expression: (mixedChainA + mixedChainB == 10) && (mixedChainC * mixedChainD == 20) && (mixedChainE - mixedChainF == 5) && (mixedChainG / mixedChainH == 2) && (mixedChainI > mixedChainJ)
+  tests:
+    - name: all operations match
+      event:
+        mixedChainA: 3
+        mixedChainB: 7
+        mixedChainC: 4
+        mixedChainD: 5
+        mixedChainE: 10
+        mixedChainF: 5
+        mixedChainG: 8
+        mixedChainH: 4
+        mixedChainI: 20
+        mixedChainJ: 10
+      expect: true
+
+# Operator precedence
+- metadata:
+    id: arithmetic-precedence-1
+    description: Multiplication before addition
+  expression: a + b * c == 11
+  tests:
+    - name: precedence test
+      event:
+        a: 1
+        b: 2
+        c: 5
+      expect: true
+
+- metadata:
+    id: arithmetic-precedence-2
+    description: Multiplication then addition
+  expression: precedence2A * precedence2B + precedence2C == 11
+  tests:
+    - name: precedence test
+      event:
+        precedence2A: 2
+        precedence2B: 3
+        precedence2C: 5
+      expect: true
+
+- metadata:
+    id: mixed-precedence-1
+    description: Arithmetic in comparison
+  expression: a + b > c * d
+  tests:
+    - name: addition vs multiplication
+      event:
+        a: 10
+        b: 5
+        c: 2
+        d: 7
+      expect: true
+
+- metadata:
+    id: mixed-precedence-2
+    description: Arithmetic with logical
+  expression: mixedPrecA * mixedPrecB == mixedPrecC && mixedPrecD > mixedPrecE
+  tests:
+    - name: multiplication and comparison
+      event:
+        mixedPrecA: 2
+        mixedPrecB: 3
+        mixedPrecC: 6
+        mixedPrecD: 10
+        mixedPrecE: 5
+      expect: true
+
+- metadata:
+    id: logical-precedence
+    description: AND before OR precedence
+  expression: a == 1 && b == 2 || c == 3
+  tests:
+    - name: OR branch matches
+      event:
+        a: 1
+        b: 99
+        c: 3
+      expect: true
+    - name: AND branch matches
+      event:
+        a: 1
+        b: 2
+        c: 99
+      expect: true
+
+# Parentheses grouping
+- metadata:
+    id: grouped-arithmetic
+    description: Grouped addition before multiplication
+  expression: (a + b) * c == 30
+  tests:
+    - name: grouped calculation
+      event:
+        a: 5
+        b: 5
+        c: 3
+      expect: true
+
+- metadata:
+    id: ungrouped-arithmetic
+    description: Natural precedence multiplication first
+  expression: a + b * c == 30
+  tests:
+    - name: ungrouped calculation
+      event:
+        a: 10
+        b: 4
+        c: 5
+      expect: true
+
+- metadata:
+    id: grouped-logical
+    description: Grouped OR then AND
+  expression: (a == 1 || b == 2) && c == 3
+  tests:
+    - name: grouped logical match
+      event:
+        a: 1
+        b: 99
+        c: 3
+      expect: true
+    - name: grouped logical no match
+      event:
+        a: 1
+        b: 99
+        c: 99
+      expect: false
+
+- metadata:
+    id: ungrouped-logical
+    description: Natural precedence AND before OR
+  expression: a == 1 || b == 2 && c == 3
+  tests:
+    - name: OR short circuit
+      event:
+        a: 1
+        b: 99
+        c: 99
+      expect: true
+
+- metadata:
+    id: complex-grouping
+    description: Complex nested grouping
+  expression: ((a + b) * (c - d)) / e == result
+  tests:
+    - name: complex grouped calculation
+      event:
+        a: 10
+        b: 5
+        c: 20
+        d: 10
+        e: 3
+        result: 50
+      expect: true
+
+# Real world scenarios
+- metadata:
+    id: fraud-detection-complex
+    description: Fraud detection with multiple conditions
+  expression: (amount > 1000 && country != "US") || (transactionCount > 10 && accountAge < 30)
+  tests:
+    - name: high amount foreign
+      event:
+        amount: 1500
+        country: RU
+        transactionCount: 5
+        accountAge: 100
+      expect: true
+    - name: many transactions new account
+      event:
+        amount: 500
+        country: US
+        transactionCount: 15
+        accountAge: 20
+      expect: true
+    - name: safe transaction
+      event:
+        amount: 500
+        country: US
+        transactionCount: 5
+        accountAge: 100
+      expect: false
+
+- metadata:
+    id: pricing-logic-complex
+    description: Pricing calculation with inventory check
+  expression: (basePrice * quantity * (1 - discount / 100)) >= minimumOrderValue && inventory > quantity
+  tests:
+    - name: valid order
+      event:
+        basePrice: 100
+        quantity: 10
+        discount: 20
+        minimumOrderValue: 700
+        inventory: 15
+      expect: true
+    - name: insufficient inventory
+      event:
+        basePrice: 100
+        quantity: 10
+        discount: 20
+        minimumOrderValue: 700
+        inventory: 5
+      expect: false
+
+- metadata:
+    id: access-control-complex
+    description: Access control with role and status checks
+  expression: (role == "admin" || (role == "user" && department == "engineering")) && isActive == true && loginAttempts < 5
+  tests:
+    - name: admin access
+      event:
+        role: admin
+        department: sales
+        isActive: true
+        loginAttempts: 2
+      expect: true
+    - name: engineering user
+      event:
+        role: user
+        department: engineering
+        isActive: true
+        loginAttempts: 2
+      expect: true
+    - name: non-engineering user
+      event:
+        role: user
+        department: sales
+        isActive: true
+        loginAttempts: 2
+      expect: false
+
+- metadata:
+    id: recommendation-engine-complex
+    description: Recommendation logic with rating and popularity
+  expression: (userRating >= 4.0 && categoryMatch == true) || (popularityScore > 80 && priceRange == "affordable")
+  tests:
+    - name: high rating match
+      event:
+        userRating: 4.5
+        categoryMatch: true
+        popularityScore: 50
+        priceRange: expensive
+      expect: true
+    - name: popular affordable
+      event:
+        userRating: 2.0
+        categoryMatch: false
+        popularityScore: 85
+        priceRange: affordable
+      expect: true
+
+- metadata:
+    id: alert-conditions-complex
+    description: Alert conditions for system monitoring
+  expression: (cpuUsage > 80 && memoryUsage > 70) || (errorRate > 0.05 && responseTime > 1000) || criticalError == true
+  tests:
+    - name: resource exhaustion
+      event:
+        cpuUsage: 85
+        memoryUsage: 75
+        errorRate: 0.01
+        responseTime: 500
+        criticalError: false
+      expect: true
+    - name: critical error flag
+      event:
+        cpuUsage: 50
+        memoryUsage: 50
+        errorRate: 0.01
+        responseTime: 500
+        criticalError: true
+      expect: true
+
+# Nested quantifiers
+- metadata:
+    id: nested-forall-complex
+    description: forAll with complex conditions
+  expression: forAll("orders", "order", order.total > 100 && order.status == "completed")
+  tests:
+    - name: all orders valid
+      event:
+        orders:
+          - total: 150
+            status: completed
+          - total: 200
+            status: completed
+          - total: 120
+            status: completed
+      expect: true
+    - name: one order invalid
+      event:
+        orders:
+          - total: 150
+            status: completed
+          - total: 50
+            status: completed
+      expect: false
+
+- metadata:
+    id: quantifier-with-arithmetic
+    description: forSome with arithmetic in condition
+  expression: forSome("items", "item", (item.price * item.quantity) > 500)
+  tests:
+    - name: one item over threshold
+      event:
+        items:
+          - price: 100
+            quantity: 3
+          - price: 50
+            quantity: 12
+      expect: true
+    - name: all items under threshold
+      event:
+        items:
+          - price: 10
+            quantity: 3
+          - price: 20
+            quantity: 5
+      expect: false
+
+- metadata:
+    id: mixed-quantifier-logic
+    description: Quantifier mixed with other conditions
+  expression: (forAll("products", "p", p.inStock == true) && totalValue > 1000) || vipCustomer == true
+  tests:
+    - name: all in stock and high value
+      event:
+        products:
+          - inStock: true
+          - inStock: true
+        totalValue: 1200
+        vipCustomer: false
+      expect: true
+    - name: vip customer
+      event:
+        products:
+          - inStock: false
+        totalValue: 500
+        vipCustomer: true
+      expect: true
+
+- metadata:
+    id: complex-quantifier-condition
+    description: forSome with complex OR condition
+  expression: forSome("transactions", "t", (t.amount > threshold && t.currency == "USD") || t.flagged == true)
+  tests:
+    - name: high USD transaction
+      event:
+        transactions:
+          - amount: 500
+            currency: EUR
+            flagged: false
+          - amount: 1500
+            currency: USD
+            flagged: false
+        threshold: 1000
+      expect: true
+    - name: flagged transaction
+      event:
+        transactions:
+          - amount: 500
+            currency: EUR
+            flagged: true
+        threshold: 1000
+      expect: true
+
+# Edge cases
+- metadata:
+    id: empty-quantifier-complex
+    description: Empty array with quantifier in complex expression
+  expression: (a > 10 && forAll("items", "item", item.valid == true)) || b == 1
+  tests:
+    - name: OR branch matches
+      event:
+        a: 5
+        b: 1
+        items: []
+      expect: true
+
+- metadata:
+    id: null-in-complex
+    description: Null handling in complex expression
+  expression: (a + b > 100 || c == null) && d != null
+  tests:
+    - name: arithmetic branch with null
+      event:
+        a: 50
+        b: 60
+        c: null
+        d: 42
+      expect: true
+    - name: null check branch
+      event:
+        a: 10
+        b: 20
+        c: null
+        d: 42
+      expect: true
+
+- metadata:
+    id: zero-division-protected
+    description: Zero division protection with short-circuit
+  expression: divisor != 0 && dividend / divisor > 10
+  tests:
+    - name: valid division
+      event:
+        divisor: 5
+        dividend: 60
+      expect: true
+    - name: zero divisor blocked
+      event:
+        divisor: 0
+        dividend: 60
+      expect: false

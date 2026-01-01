@@ -83,6 +83,9 @@ type CompareCondRepo struct {
 	CondToCategoryMap            *hashmap.Map[condition.Condition, *hashmap.Map[condition.Operand, []condition.Operand]]
 	CondToStringMatcher          *hashmap.Map[condition.Condition, *StringMatcher]
 	EvalCategoryRecs             []*EvalCategoryRec
+	// Categories that must be evaluated even if their attributes aren't in the event
+	// (e.g., null checks like "field == null", constant expressions like "1 == 1")
+	AlwaysEvaluateCategories     *hashset.Set[*EvalCategoryRec]
 	RuleRepo                     condition.RuleRepo
 	ObjectAttributeMapper        *objectmap.ObjectAttributeMapper
 	CondFactory                  *condition.Factory
@@ -209,8 +212,32 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 				return Y
 			}
 
+			// Special handling for null comparisons
+			// Null should not equal any non-null value
+			if xKind == condition.NullOperandKind || yKind == condition.NullOperandKind {
+				bothNull := xKind == condition.NullOperandKind && yKind == condition.NullOperandKind
+				switch compOp {
+				case condition.CompareEqualOp:
+					return condition.NewBooleanOperand(bothNull)
+				case condition.CompareNotEqualOp:
+					return condition.NewBooleanOperand(!bothNull)
+				case condition.CompareGreaterOp, condition.CompareGreaterOrEqualOp,
+					condition.CompareLessOp, condition.CompareLessOrEqualOp:
+					// Null is not orderable, all ordering comparisons return false
+					return condition.NewBooleanOperand(false)
+				}
+			}
+
 			// Convert toward the higher kind, e.g. int -> float -> bool -> string
 			X, Y = condition.ReconcileOperands(X, Y)
+
+			// Check for errors after reconciliation
+			if X.GetKind() == condition.ErrorOperandKind {
+				return X
+			}
+			if Y.GetKind() == condition.ErrorOperandKind {
+				return Y
+			}
 
 			switch compOp {
 			case condition.CompareEqualOp:
@@ -268,10 +295,33 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 
 	// Create an entry in the categoryMap for each of the consOperandList
 	for _, constOperand := range consOperandList {
+		category := condition.NewIntOperand(int64(scope.Evaluator.GetCategory()))
+
+		// Add the constant itself
 		categoryList, _ := categoryMap.Get(constOperand)
-		categoryMap.Put(
-			constOperand,
-			append(categoryList, condition.NewIntOperand(int64(scope.Evaluator.GetCategory()))))
+		categoryMap.Put(constOperand, append(categoryList, category))
+
+		// Also add type-converted versions for numeric/string interoperability
+		constKind := constOperand.GetKind()
+		if constKind == condition.StringOperandKind {
+			// Try adding int and float versions of string constants
+			intVersion := constOperand.Convert(condition.IntOperandKind)
+			if intVersion.GetKind() != condition.ErrorOperandKind {
+				intList, _ := categoryMap.Get(intVersion)
+				categoryMap.Put(intVersion, append(intList, category))
+			}
+			floatVersion := constOperand.Convert(condition.FloatOperandKind)
+			if floatVersion.GetKind() != condition.ErrorOperandKind {
+				floatList, _ := categoryMap.Get(floatVersion)
+				categoryMap.Put(floatVersion, append(floatList, category))
+			}
+		} else if constKind == condition.IntOperandKind || constKind == condition.FloatOperandKind {
+			// Try adding string version of numeric constants
+			stringVersion := constOperand.Convert(condition.StringOperandKind)
+			stringList, _ := categoryMap.Get(stringVersion)
+			categoryMap.Put(stringVersion, append(stringList, category))
+		}
+		// Note: Boolean types are intentionally excluded
 	}
 
 	if seenCond {
@@ -291,9 +341,34 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 			catList, k := categoryMap.Get(X)
 			if k {
 				return condition.NewListOperand(catList)
-			} else {
-				return condition.IntConst0
 			}
+
+			// Try type conversions for numeric/string comparisons (but NOT boolean)
+			if xKind == condition.StringOperandKind {
+				// Try converting string to int
+				intX := X.Convert(condition.IntOperandKind)
+				if intX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(intX); k {
+						return condition.NewListOperand(catList)
+					}
+				}
+				// Try converting string to float
+				floatX := X.Convert(condition.FloatOperandKind)
+				if floatX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(floatX); k {
+						return condition.NewListOperand(catList)
+					}
+				}
+			} else if xKind == condition.IntOperandKind || xKind == condition.FloatOperandKind {
+				// Try converting number to string (but NOT to/from boolean)
+				stringX := X.Convert(condition.StringOperandKind)
+				if catList, k := categoryMap.Get(stringX); k {
+					return condition.NewListOperand(catList)
+				}
+			}
+			// Note: Boolean types are intentionally excluded from cross-type conversions
+
+			return condition.IntConst0
 		}, varOperand)
 }
 
@@ -476,6 +551,20 @@ func (repo *CompareCondRepo) processCompareCondition(
 		evalCatRec.Eval = eval
 
 		repo.CondToCompareCondRecord.Put(compareCond, evalCatRec)
+
+		// Register categories that must always be evaluated:
+		// 1. Null checks: comparisons where one operand is null (field == null, field != null)
+		// 2. Constant expressions: comparisons with no event dependencies (1 == 1, true)
+		// Note: Only register if eval is not nil (processCompareEqualToConstCondition can return nil for duplicates)
+		if eval != nil {
+			isNullCheck := compareCond.LeftOperand.GetKind() == condition.NullOperandKind ||
+				compareCond.RightOperand.GetKind() == condition.NullOperandKind
+			hasNoEventDependencies := len(evalCatRec.AttrKeys) == 0
+
+			if isNullCheck || hasNoEventDependencies {
+				repo.AlwaysEvaluateCategories.Put(evalCatRec)
+			}
+		}
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
@@ -648,9 +737,16 @@ func (repo *CompareCondRepo) genEvalForAllCondition(
 			func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
 				numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
 				if err != nil {
-					return condition.NewErrorOperand(err)
+					// Array is missing/null - return false (rule doesn't apply to missing arrays)
+					return condition.NewBooleanOperand(false)
 				}
 
+				// Empty array - return true (vacuous truth: "all elements" in empty set satisfy any condition)
+				if numElements == 0 {
+					return condition.NewBooleanOperand(true)
+				}
+
+				// Non-empty array - evaluate condition for each element
 				parentsFrame := frames[arrayAddress.ParentParameterIndex]
 				currentAddressLen := len(arrayAddress.Address)
 				currentAddress := types.GetIntSlice()
@@ -700,6 +796,9 @@ func (repo *CompareCondRepo) processForAllCondition(
 		} else {
 			repo.registerCatEvaluatorForAddress(arrayAddress.FullAddress, evalCatRec)
 		}
+		// Add to AlwaysEvaluateCategories so it runs for empty arrays
+		// (just like field == null runs for missing fields)
+		repo.AlwaysEvaluateCategories.Put(evalCatRec)
 	}
 	return condition.NewCategoryCond(evalCatRec.GetCategory())
 }
@@ -1178,6 +1277,17 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.CondFactory.NewStringOperand(unquotedStr)
 		}
 	case *ast.Ident:
+		// Handle boolean literals
+		if n.Name == "true" {
+			return repo.CondFactory.NewBooleanOperand(true)
+		}
+		if n.Name == "false" {
+			return repo.CondFactory.NewBooleanOperand(false)
+		}
+		// Handle null literal
+		if n.Name == "null" {
+			return condition.NewNullOperand(nil)
+		}
 		return repo.CondFactory.NewSelOperand(nil, n.Name)
 	case *ast.SelectorExpr:
 		x := repo.preprocessAstExpr(n.X, scope)
@@ -1453,6 +1563,10 @@ func funcRegexpMatch(repo *CompareCondRepo, n *ast.CallExpr, scope *ForEachScope
 			kind := arg.GetKind()
 			if kind == condition.ErrorOperandKind {
 				return arg
+			}
+			// Handle null values - return false instead of panicking
+			if kind == condition.NullOperandKind {
+				return condition.NewBooleanOperand(false)
 			}
 			argString := string(arg.Convert(condition.StringOperandKind).(condition.StringOperand))
 			result := condition.NewBooleanOperand(re.MatchString(argString))

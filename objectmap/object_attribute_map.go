@@ -25,13 +25,12 @@ type AttrDictionaryRec struct {
 // only store the fields referenced by the filters.  EventAttributeMap also allows
 // fast access to these fields when evaluating filters.
 type ObjectAttributeMapper struct {
-	RootDictRec *AttrDictionaryRec
-	Ctx         *types.AppContext
-	Config      MapperConfig
-	objectPool  *sync.Pool
-	//mu          sync.Mutex
-	// Global list to keep track of all allocated *ObjectAttributeMap
-	objectList []*ObjectAttributeMap
+	RootDictRec    *AttrDictionaryRec
+	Ctx            *types.AppContext
+	Config         MapperConfig
+	objectPool     *sync.Pool
+	valuesPool     *sync.Pool
+	valuesPoolOnce sync.Once
 }
 
 type MapperConfig interface {
@@ -54,8 +53,9 @@ func NewObjectAttributeMapper(config MapperConfig) *ObjectAttributeMapper {
 }
 
 type ObjectAttributeMap struct {
-	DictRec *AttrDictionaryRec
-	Values  []interface{}
+	DictRec       *AttrDictionaryRec
+	Values        []interface{}
+	OriginalEvent interface{} // Store original event for empty array detection
 }
 
 type PathSegment struct {
@@ -379,32 +379,36 @@ func (attrMap *ObjectAttributeMap) GetAttributeByAddress(attrAddress []int, fram
 func (mapper *ObjectAttributeMapper) NewObjectAttributeMap() *ObjectAttributeMap {
 	obj := mapper.objectPool.Get().(*ObjectAttributeMap)
 	obj.DictRec = mapper.RootDictRec
-	if cap(obj.Values) < mapper.RootDictRec.numAttributes {
-		obj.Values = make([]interface{}, mapper.RootDictRec.numAttributes)
-	} else {
-		obj.Values = obj.Values[:0]                             // Clear the slice
-		for i := 0; i < mapper.RootDictRec.numAttributes; i++ { // Resize the slice
-			obj.Values = append(obj.Values, nil)
+
+	// Lazily initialize valuesPool on first use (when numAttributes is known)
+	// Use sync.Once to ensure thread-safe initialization
+	mapper.valuesPoolOnce.Do(func() {
+		numAttrs := mapper.RootDictRec.numAttributes
+		mapper.valuesPool = &sync.Pool{
+			New: func() interface{} {
+				return make([]interface{}, numAttrs)
+			},
 		}
+	})
+
+	// Get Values slice from pool and clear it
+	values := mapper.valuesPool.Get().([]interface{})
+	for i := range values {
+		values[i] = nil
 	}
-
-	// Add the newly created object to the global list
-	//mapper.mu.Lock()
-	mapper.objectList = append(mapper.objectList, obj)
-	//mapper.mu.Unlock()
-
+	obj.Values = values
 	return obj
 }
 
-func (mapper *ObjectAttributeMapper) FreeObjects() {
-	// Return all allocated objects to the pool
-	//mapper.mu.Lock()
-	for _, obj := range mapper.objectList {
-		mapper.objectPool.Put(obj)
+// FreeObject returns a single ObjectAttributeMap to the pool
+func (mapper *ObjectAttributeMapper) FreeObject(obj *ObjectAttributeMap) {
+	// Return Values slice to pool (if pool is initialized)
+	if mapper.valuesPool != nil && obj.Values != nil {
+		mapper.valuesPool.Put(obj.Values)
 	}
-	// Clear the global list
-	mapper.objectList = nil
-	//mapper.mu.Unlock()
+	obj.Values = nil
+	obj.OriginalEvent = nil
+	mapper.objectPool.Put(obj)
 }
 
 func (mapper *ObjectAttributeMapper) buildObjectMap(
@@ -429,7 +433,8 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 	case reflect.Slice:
 		attrDictRec, ok := dictRec.dict[path+"[]"]
 		if ok {
-			newAddress := append(address, attrDictRec.mapIndex, 0)
+			// Create new slice with its own backing array to avoid race conditions
+			newAddress := append(address[:len(address):len(address)], attrDictRec.mapIndex, 0)
 			for i, elem := range v.([]interface{}) {
 				newAddress[len(newAddress)-1] = i
 				newValues := make([]interface{}, attrDictRec.numAttributes)
@@ -446,7 +451,8 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 	case reflect.Int, reflect.Int64, reflect.String, reflect.Float64, reflect.Bool, reflect.Invalid:
 		attrDictRec, ok := dictRec.dict[path]
 		if ok && attrDictRec.mapIndex != -1 {
-			newAddress := append(address, attrDictRec.mapIndex)
+			// Create new slice with its own backing array to avoid race conditions
+			newAddress := append(address[:len(address):len(address)], attrDictRec.mapIndex)
 			values[attrDictRec.mapIndex] = mapper.Config.MapScalar(v)
 			attrCallback(newAddress)
 		}
@@ -458,6 +464,7 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 func (mapper *ObjectAttributeMapper) MapObject(v interface{}, attrCallback func([]int)) *ObjectAttributeMap {
 	address := make([]int, 0, 20)
 	result := mapper.NewObjectAttributeMap()
+	result.OriginalEvent = v // Store original event
 	mapper.buildObjectMap("", v, result.Values, result.DictRec, attrCallback, address)
 	return result
 }
@@ -465,6 +472,17 @@ func (mapper *ObjectAttributeMapper) MapObject(v interface{}, attrCallback func(
 func (attrMap *ObjectAttributeMap) GetNumElementsAtAddress(address *AttributeAddress, frames []interface{}) (int, error) {
 	values, err := attrMap.GetAttributeByAddress(address.Address, frames[address.ParentParameterIndex])
 	if err != nil {
+		// If not found in mapped Values, check the original event for empty arrays
+		// This handles the case where an array exists but is empty
+		if attrMap.OriginalEvent != nil {
+			arrayValue := attrMap.getValueFromOriginalEvent(address.Path)
+			if arrayValue != nil {
+				kind := reflect.ValueOf(arrayValue).Kind()
+				if kind == reflect.Slice {
+					return len(arrayValue.([]interface{})), nil
+				}
+			}
+		}
 		return 0, err
 	} else {
 		kind := reflect.ValueOf(values).Kind()
@@ -476,4 +494,33 @@ func (attrMap *ObjectAttributeMap) GetNumElementsAtAddress(address *AttributeAdd
 				kind, attrMap.DictRec.AddressToFullPath(address.Address))
 		}
 	}
+}
+
+// getValueFromOriginalEvent navigates the original event using a path like "items[]"
+func (attrMap *ObjectAttributeMap) getValueFromOriginalEvent(path string) interface{} {
+	// Strip "[]" suffix if present
+	cleanPath := strings.TrimSuffix(path, "[]")
+	if cleanPath == "" {
+		return attrMap.OriginalEvent
+	}
+
+	// Navigate the path segments
+	current := attrMap.OriginalEvent
+	segments := strings.Split(cleanPath, ".")
+	for _, segment := range segments {
+		if current == nil {
+			return nil
+		}
+
+		// Handle map access
+		switch v := current.(type) {
+		case map[string]interface{}:
+			current = v[segment]
+		case map[interface{}]interface{}:
+			current = v[segment]
+		default:
+			return nil
+		}
+	}
+	return current
 }

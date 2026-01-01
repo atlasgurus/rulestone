@@ -1,0 +1,55 @@
+- metadata:
+    id: simple-equality
+    description: Test simple equality comparison
+  expression: a == 10
+  tests:
+    - name: matches when a is 10
+      event:
+        a: 10
+      expect: true
+    - name: does not match when a is 5
+      event:
+        a: 5
+      expect: false
+
+- metadata:
+    id: simple-and
+    description: Test AND operator
+  expression: a == 10 && b == 20
+  tests:
+    - name: matches when both conditions true
+      event:
+        a: 10
+        b: 20
+      expect: true
+    - name: does not match when first condition false
+      event:
+        a: 5
+        b: 20
+      expect: false
+    - name: does not match when second condition false
+      event:
+        a: 10
+        b: 15
+      expect: false
+
+- metadata:
+    id: simple-or
+    description: Test OR operator
+  expression: a == 10 || b == 20
+  tests:
+    - name: matches when first condition true
+      event:
+        a: 10
+        b: 15
+      expect: true
+    - name: matches when second condition true
+      event:
+        a: 5
+        b: 20
+      expect: true
+    - name: does not match when both false
+      event:
+        a: 5
+        b: 15
+      expect: false

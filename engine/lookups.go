@@ -52,9 +52,17 @@ func (sm *StringMatcher) Match(text string) []condition.Operand {
 	}
 	hits := sm.machine.Match([]byte(text))
 
+	// Deduplicate categories using a hash set
+	seen := make(map[uint64]bool)
 	matchedCategories := make([]condition.Operand, 0)
 	for _, hit := range hits {
-		matchedCategories = append(matchedCategories, sm.categories[hit]...)
+		for _, cat := range sm.categories[hit] {
+			hash := cat.GetHash()
+			if !seen[hash] {
+				seen[hash] = true
+				matchedCategories = append(matchedCategories, cat)
+			}
+		}
 	}
 
 	return matchedCategories

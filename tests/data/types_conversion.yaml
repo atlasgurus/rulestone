@@ -1,0 +1,479 @@
+# Type Conversion Tests
+# Tests for type conversion behavior in the rulestone engine
+
+# String to Number Conversions
+- metadata:
+    id: string-to-int-equal
+    description: String number equals integer comparison
+  expression: stringNum == 42
+  tests:
+    - name: string "42" equals integer 42
+      event:
+        stringNum: "42"
+      expect: true
+    - name: string "not_a_number" does not match
+      event:
+        stringNum: "not_a_number"
+      expect: false
+
+- metadata:
+    id: string-to-int-compare
+    description: String number in comparison operator
+  expression: stringNum > 40
+  tests:
+    - name: string "42" is greater than 40
+      event:
+        stringNum: "42"
+      expect: true
+    - name: string "not_a_number" does not match
+      event:
+        stringNum: "not_a_number"
+      expect: false
+
+- metadata:
+    id: string-to-float-equal
+    description: String float equals float comparison
+  expression: stringFloat == 3.14
+  tests:
+    - name: string "3.14" equals float 3.14
+      event:
+        stringFloat: "3.14"
+      expect: true
+    - name: string "2.5" does not match
+      event:
+        stringFloat: "2.5"
+      expect: false
+
+- metadata:
+    id: string-to-float-compare
+    description: String float in comparison operator
+  expression: stringFloat < 4.0
+  tests:
+    - name: string "3.14" is less than 4.0
+      event:
+        stringFloat: "3.14"
+      expect: true
+    - name: string "5.0" does not match
+      event:
+        stringFloat: "5.0"
+      expect: false
+
+- metadata:
+    id: string-numeric-add
+    description: String number in arithmetic expression
+  expression: stringNum + 8 == 50
+  tests:
+    - name: string "42" plus 8 equals 50
+      event:
+        stringNum: "42"
+      expect: true
+    - name: string "30" plus 8 does not equal 50
+      event:
+        stringNum: "30"
+      expect: false
+
+# Number to String Conversions
+- metadata:
+    id: int-equals-string
+    description: Integer equals string comparison
+  expression: age == "25"
+  tests:
+    - name: integer 25 equals string "25"
+      event:
+        age: 25
+      expect: true
+    - name: integer 30 does not equal string "25"
+      event:
+        age: 30
+      expect: false
+
+- metadata:
+    id: float-equals-string
+    description: Float equals string comparison
+  expression: price == "99.99"
+  tests:
+    - name: float 99.99 equals string "99.99"
+      event:
+        price: 99.99
+      expect: true
+    - name: float 50.00 does not equal string "99.99"
+      event:
+        price: 50.00
+      expect: false
+
+- metadata:
+    id: int-string-contains
+    description: Integer in string function
+  expression: containsAny(status, "200")
+  tests:
+    - name: status contains "200"
+      event:
+        status: "200"
+      expect: true
+    - name: status does not contain "200"
+      event:
+        status: "404"
+      expect: false
+
+# Boolean to Numeric (NO conversion)
+- metadata:
+    id: true-equals-true
+    description: Boolean true equals true
+  expression: isActive == true
+  tests:
+    - name: boolean true equals true
+      event:
+        isActive: true
+      expect: true
+    - name: boolean false does not equal true
+      event:
+        isActive: false
+      expect: false
+
+- metadata:
+    id: false-equals-false
+    description: Boolean false equals false
+  expression: isDisabled == false
+  tests:
+    - name: boolean false equals false
+      event:
+        isDisabled: false
+      expect: true
+    - name: boolean true does not equal false
+      event:
+        isDisabled: true
+      expect: false
+
+- metadata:
+    id: bool-in-logical
+    description: Boolean values in logical expression
+  expression: boolValue == true && flag == true
+  tests:
+    - name: both boolean values are true
+      event:
+        boolValue: true
+        flag: true
+      expect: true
+    - name: first boolean is false
+      event:
+        boolValue: false
+        flag: true
+      expect: false
+
+- metadata:
+    id: bool-not-equal-number
+    description: Boolean does NOT convert to number
+  expression: flag == 1
+  tests:
+    - name: boolean true does NOT equal numeric 1
+      event:
+        flag: true
+      expect: false
+    - name: numeric 1 equals numeric 1
+      event:
+        flag: 1
+      expect: true
+
+# Implicit Conversions in Operators
+- metadata:
+    id: int-float-comparison
+    description: Integer and float comparison
+  expression: intVal < floatVal
+  tests:
+    - name: int 50 is less than float 75.5
+      event:
+        intVal: 50
+        floatVal: 75.5
+      expect: true
+    - name: int 100 is not less than float 75.5
+      event:
+        intVal: 100
+        floatVal: 75.5
+      expect: false
+
+- metadata:
+    id: mixed-arithmetic
+    description: Mixed int and float in arithmetic
+  expression: intVal + floatVal > 100.0
+  tests:
+    - name: int 50 plus float 75.5 is greater than 100
+      event:
+        intVal: 50
+        floatVal: 75.5
+      expect: true
+    - name: int 30 plus float 40.0 is not greater than 100
+      event:
+        intVal: 30
+        floatVal: 40.0
+      expect: false
+
+- metadata:
+    id: string-int-equality
+    description: String and integer equality
+  expression: stringValue == intValue
+  tests:
+    - name: string "42" equals int 42
+      event:
+        stringValue: "42"
+        intValue: 42
+      expect: true
+    - name: string "42" does not equal int 50
+      event:
+        stringValue: "42"
+        intValue: 50
+      expect: false
+
+- metadata:
+    id: bool-numeric-mixed
+    description: Boolean and integer in arithmetic
+  expression: boolVal + intVal == 11
+  tests:
+    - name: boolean true (1) plus int 10 equals 11
+      event:
+        boolVal: true
+        intVal: 10
+      expect: true
+    - name: boolean false (0) plus int 10 does not equal 11
+      event:
+        boolVal: false
+        intVal: 10
+      expect: false
+
+# Type Reconciliation Matrix
+- metadata:
+    id: int-int
+    description: Integer to integer comparison
+  expression: a == 10
+  tests:
+    - name: int 10 equals int 10
+      event:
+        a: 10
+      expect: true
+    - name: int 5 does not equal int 10
+      event:
+        a: 5
+      expect: false
+
+- metadata:
+    id: int-float
+    description: Integer equals float comparison
+  expression: a == 10.0
+  tests:
+    - name: int 10 equals float 10.0
+      event:
+        a: 10
+      expect: true
+    - name: int 5 does not equal float 10.0
+      event:
+        a: 5
+      expect: false
+
+- metadata:
+    id: float-float
+    description: Float to float comparison
+  expression: b == 3.14
+  tests:
+    - name: float 3.14 equals float 3.14
+      event:
+        b: 3.14
+      expect: true
+    - name: float 2.5 does not equal float 3.14
+      event:
+        b: 2.5
+      expect: false
+
+- metadata:
+    id: string-string
+    description: String to string comparison
+  expression: c == "hello"
+  tests:
+    - name: string "hello" equals string "hello"
+      event:
+        c: "hello"
+      expect: true
+    - name: string "world" does not equal string "hello"
+      event:
+        c: "world"
+      expect: false
+
+- metadata:
+    id: bool-bool
+    description: Boolean to boolean comparison
+  expression: d == true
+  tests:
+    - name: boolean true equals true
+      event:
+        d: true
+      expect: true
+    - name: boolean false does not equal true
+      event:
+        d: false
+      expect: false
+
+- metadata:
+    id: int-string
+    description: Integer equals string comparison
+  expression: a == "10"
+  tests:
+    - name: int 10 equals string "10"
+      event:
+        a: 10
+      expect: true
+    - name: int 5 does not equal string "10"
+      event:
+        a: 5
+      expect: false
+
+- metadata:
+    id: float-string
+    description: Float equals string comparison
+  expression: b == "3.14"
+  tests:
+    - name: float 3.14 equals string "3.14"
+      event:
+        b: 3.14
+      expect: true
+    - name: float 2.5 does not equal string "3.14"
+      event:
+        b: 2.5
+      expect: false
+
+# Precision Loss Tests
+- metadata:
+    id: float-to-int-truncate
+    description: Float with decimals vs integer (no truncation)
+  expression: floatValue == 42
+  tests:
+    - name: float 42.7 does NOT equal int 42 (no truncation)
+      event:
+        floatValue: 42.7
+      expect: false
+    - name: float 42.0 equals int 42
+      event:
+        floatValue: 42.0
+      expect: true
+
+- metadata:
+    id: float-to-int-round
+    description: Float rounding test
+  expression: roundValue == 10
+  tests:
+    - name: float 10.0 equals int 10
+      event:
+        roundValue: 10.0
+      expect: true
+    - name: float 10.5 does not equal int 10
+      event:
+        roundValue: 10.5
+      expect: false
+
+- metadata:
+    id: precise-float
+    description: Precise float comparison
+  expression: preciseValue == 42.7
+  tests:
+    - name: float 42.7 equals float 42.7
+      event:
+        preciseValue: 42.7
+      expect: true
+    - name: float 42.0 does not equal float 42.7
+      event:
+        preciseValue: 42.0
+      expect: false
+
+# Invalid Conversions
+- metadata:
+    id: invalid-string-to-number
+    description: Invalid string in numeric comparison
+  expression: badNumber > 10
+  tests:
+    - name: non-numeric string does not match
+      event:
+        badNumber: "not_a_number"
+      expect: false
+    - name: empty string does not match
+      event:
+        badNumber: ""
+      expect: false
+    - name: valid numeric string 15 matches
+      event:
+        badNumber: "15"
+      expect: true
+
+- metadata:
+    id: invalid-comparison
+    description: Invalid value in comparison
+  expression: value == 42
+  tests:
+    - name: numeric 42 matches
+      event:
+        value: 42
+      expect: true
+    - name: string "42" matches
+      event:
+        value: "42"
+      expect: true
+    - name: complex object does not match
+      event:
+        value:
+          nested: "value"
+      expect: false
+
+# Mixed Operations
+- metadata:
+    id: mixed-arithmetic-comparison
+    description: Mixed types in arithmetic with comparison
+  expression: (intVal + floatVal) / 2 > threshold
+  tests:
+    - name: (50 + 70.0) / 2 = 60.0 > 50.0
+      event:
+        intVal: 50
+        floatVal: 70.0
+        threshold: 50.0
+      expect: true
+    - name: (30 + 40.0) / 2 = 35.0 not > 50.0
+      event:
+        intVal: 30
+        floatVal: 40.0
+        threshold: 50.0
+      expect: false
+
+- metadata:
+    id: bool-string-logic
+    description: Boolean with string in complex logical expression
+  expression: (isActive == true || isDisabled == false) && status == "active"
+  tests:
+    - name: true OR false AND status active matches
+      event:
+        isActive: true
+        isDisabled: false
+        status: "active"
+      expect: true
+    - name: true OR false but status inactive does not match
+      event:
+        isActive: true
+        isDisabled: false
+        status: "inactive"
+      expect: false
+    - name: false OR true AND status active does not match
+      event:
+        isActive: false
+        isDisabled: true
+        status: "active"
+      expect: false
+
+- metadata:
+    id: complex-mixed
+    description: String number with int in complex arithmetic
+  expression: stringNum + intVal * 2 == 100
+  tests:
+    - name: string "20" + (40 * 2) = 100
+      event:
+        stringNum: "20"
+        intVal: 40
+      expect: true
+    - name: string "30" + (40 * 2) != 100
+      event:
+        stringNum: "30"
+        intVal: 40
+      expect: false

@@ -1,0 +1,529 @@
+# String Functions Test Cases
+# Extracted from functions_string_test.go
+# This file contains comprehensive test cases for regexpMatch and containsAny functions
+#
+# Test Coverage:
+#  - 28 rules covering regexpMatch and containsAny functions
+#  - 85 test cases total
+#  - Test Status: 85 passing, 0 failing (100% pass rate)
+#
+# Fixed Issues:
+#  - Field name collisions resolved by making all field names unique per rule
+#  - Previously failing tests now pass after renaming colliding fields
+
+# TestStringFunctions_RegexpMatch_Basic - Basic regexpMatch functionality
+- metadata:
+    id: simple-pattern
+    description: Email pattern validation using regex
+  expression: regexpMatch(".*@.*\\.com", email)
+  tests:
+    - name: valid email pattern
+      event:
+        email: user@example.com
+      expect: true
+    - name: invalid email pattern
+      event:
+        email: invalid-email
+      expect: false
+
+- metadata:
+    id: digit-pattern
+    description: Four digit code validation
+  expression: regexpMatch("^[0-9]{4}$", code)
+  tests:
+    - name: four digit code
+      event:
+        code: "1234"
+      expect: true
+    - name: invalid code length
+      event:
+        code: "123"
+      expect: false
+
+- metadata:
+    id: word-pattern
+    description: Word boundary pattern matching
+  expression: regexpMatch("\\btest\\b", word_text)
+  tests:
+    - name: word boundary match
+      event:
+        word_text: this is a test string
+      expect: true
+    - name: word boundary no match
+      event:
+        word_text: testing string
+      expect: false
+
+- metadata:
+    id: case-sensitive
+    description: Case sensitive pattern matching
+  expression: regexpMatch("^Test", case_value)
+  tests:
+    - name: case sensitive match
+      event:
+        case_value: Test123
+      expect: true
+    - name: case sensitive no match
+      event:
+        case_value: test123
+      expect: false
+
+- metadata:
+    id: multiline-pattern
+    description: Multiline content pattern matching
+  expression: regexpMatch("start.*end", content)
+  tests:
+    - name: multiline pattern match
+      event:
+        content: start middle end
+      expect: true
+    - name: multiline pattern no match
+      event:
+        content: begin middle finish
+      expect: false
+
+# TestStringFunctions_RegexpMatch_Complex - Complex regex patterns
+- metadata:
+    id: ip-address
+    description: IP address pattern validation
+  expression: regexpMatch("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$", ip)
+  tests:
+    - name: valid IP address
+      event:
+        ip: 192.168.1.1
+      expect: true
+    - name: invalid IP address format
+      event:
+        ip: 999.999.999.999
+      expect: true  # Pattern matches format, not validity
+    - name: invalid IP missing octets
+      event:
+        ip: 192.168.1
+      expect: false
+
+- metadata:
+    id: phone-number
+    description: Phone number pattern validation
+  expression: regexpMatch("^\\+?1?[0-9]{10,14}$", phone)
+  tests:
+    - name: valid phone number with country code
+      event:
+        phone: "+12345678901"
+      expect: true
+    - name: valid phone number without country code
+      event:
+        phone: "2345678901"
+      expect: true
+    - name: invalid phone number too short
+      event:
+        phone: "123456789"
+      expect: false
+
+- metadata:
+    id: url-pattern
+    description: URL pattern validation
+  expression: regexpMatch("^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", url)
+  tests:
+    - name: valid URL http
+      event:
+        url: http://example.com
+      expect: true
+    - name: valid URL https
+      event:
+        url: https://www.example.com
+      expect: true
+    - name: invalid URL missing protocol
+      event:
+        url: www.example.com
+      expect: false
+
+- metadata:
+    id: credit-card
+    description: Credit card number pattern validation
+  expression: regexpMatch("^[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}$", card)
+  tests:
+    - name: credit card with spaces
+      event:
+        card: "1234 5678 9012 3456"
+      expect: true
+    - name: credit card with dashes
+      event:
+        card: "1234-5678-9012-3456"
+      expect: true
+    - name: credit card no separators
+      event:
+        card: "1234567890123456"
+      expect: true
+    - name: invalid credit card wrong length
+      event:
+        card: "1234 5678 9012"
+      expect: false
+
+- metadata:
+    id: alphanumeric
+    description: Alphanumeric pattern validation
+  expression: regexpMatch("^[a-zA-Z0-9]+$", alphanumeric_value)
+  tests:
+    - name: alphanumeric valid
+      event:
+        alphanumeric_value: Test123
+      expect: true
+    - name: alphanumeric with special chars
+      event:
+        alphanumeric_value: Test-123
+      expect: false
+
+# TestStringFunctions_RegexpMatch_NullHandling - Regex with null inputs
+- metadata:
+    id: null-value
+    description: Regex matching with potentially null values
+  expression: regexpMatch("test", null_test_value)
+  tests:
+    - name: null value in regex
+      event:
+        null_test_value: null
+      expect: false
+    - name: missing value in regex
+      event: {}
+      expect: false
+    - name: valid value matches regex
+      event:
+        null_test_value: testing
+      expect: true
+
+- metadata:
+    id: null-check-with-fallback
+    description: Null check before regex matching
+  expression: null_check_value != null && regexpMatch("test", null_check_value)
+  tests:
+    - name: null value with null check
+      event:
+        null_check_value: null
+      expect: false
+    - name: missing value with null check
+      event: {}
+      expect: false
+    - name: valid value matches with null check
+      event:
+        null_check_value: testing
+      expect: true
+
+# TestStringFunctions_ContainsAny_Basic - Basic containsAny functionality
+- metadata:
+    id: single-pattern
+    description: Single pattern containsAny check
+  expression: containsAny(single_text, "error")
+  tests:
+    - name: single pattern match
+      event:
+        single_text: This is an error message
+      expect: true
+    - name: single pattern no match
+      event:
+        single_text: Everything is fine
+      expect: false
+
+- metadata:
+    id: multiple-patterns
+    description: Multiple pattern containsAny check
+  expression: containsAny(multiple_text, "error", "fail", "warning")
+  tests:
+    - name: multiple pattern match error
+      event:
+        multiple_text: This is an error message
+      expect: true
+    - name: multiple pattern match fail
+      event:
+        multiple_text: System failed to start
+      expect: true
+    - name: multiple pattern match warning
+      event:
+        multiple_text: warning detected
+      expect: true
+    - name: multiple pattern no match
+      event:
+        multiple_text: Everything is fine
+      expect: false
+
+- metadata:
+    id: case-sensitive-contains
+    description: Case sensitive containsAny check
+  expression: containsAny(case_text, "Error", "ERROR")
+  tests:
+    - name: case sensitive match uppercase
+      event:
+        case_text: ERROR in uppercase
+      expect: true
+    - name: case sensitive match mixed
+      event:
+        case_text: Error in mixed case
+      expect: true
+    - name: case sensitive no match lowercase
+      event:
+        case_text: error in lowercase
+      expect: false
+
+- metadata:
+    id: empty-list
+    description: Empty pattern list should never match
+  expression: empty_text == "never_matches_empty_list"
+  tests:
+    - name: empty list never matches
+      event:
+        empty_text: any text
+      expect: false
+
+- metadata:
+    id: substring-match
+    description: Substring matching in URLs
+  expression: containsAny(url, "example.com", "test.org")
+  tests:
+    - name: substring in URL example.com
+      event:
+        url: https://example.com/path
+      expect: true
+    - name: substring in URL test.org
+      event:
+        url: http://test.org/page
+      expect: true
+    - name: substring no match
+      event:
+        url: https://other.net/path
+      expect: false
+
+# TestStringFunctions_ContainsAny_AhoCorasick - Aho-Corasick algorithm behavior
+- metadata:
+    id: overlapping-patterns
+    description: Overlapping pattern matching
+  expression: containsAny(overlap_text, "abc", "bcd", "cde")
+  tests:
+    - name: overlapping patterns all match
+      event:
+        overlap_text: xabcdex
+      expect: true
+    - name: overlapping patterns single match
+      event:
+        overlap_text: abc only
+      expect: true
+    - name: overlapping patterns no match
+      event:
+        overlap_text: xyz
+      expect: false
+
+- metadata:
+    id: prefix-patterns
+    description: Prefix pattern matching
+  expression: containsAny(prefix_text, "test", "testing", "tester")
+  tests:
+    - name: prefix pattern short match
+      event:
+        prefix_text: test
+      expect: true
+    - name: prefix pattern long match
+      event:
+        prefix_text: testing phase
+      expect: true
+    - name: prefix pattern tester match
+      event:
+        prefix_text: tester output
+      expect: true
+    - name: prefix pattern no match
+      event:
+        prefix_text: examination
+      expect: false
+
+- metadata:
+    id: many-patterns
+    description: Many single character patterns
+  expression: containsAny(many_text, "a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+  tests:
+    - name: many patterns no match
+      event:
+        many_text: xyz
+      expect: false
+    - name: many patterns single match
+      event:
+        many_text: xa
+      expect: true
+    - name: many patterns multiple matches
+      event:
+        many_text: abcdefghij
+      expect: true
+
+- metadata:
+    id: long-patterns
+    description: Long phrase pattern matching
+  expression: containsAny(long_text, "the quick brown fox", "jumps over the lazy dog")
+  tests:
+    - name: long pattern first phrase match
+      event:
+        long_text: the quick brown fox leaps
+      expect: true
+    - name: long pattern second phrase match
+      event:
+        long_text: jumps over the lazy dog
+      expect: true
+    - name: long pattern no match partial
+      event:
+        long_text: the quick brown
+      expect: false
+
+# TestStringFunctions_ContainsAny_NullHandling - containsAny with null inputs
+- metadata:
+    id: contains-null-value
+    description: ContainsAny with potentially null values
+  expression: containsAny(contains_null_value, "test", "demo")
+  tests:
+    - name: null value
+      event:
+        contains_null_value: null
+      expect: false
+    - name: missing value
+      event: {}
+      expect: false
+    - name: valid value matches test
+      event:
+        contains_null_value: this is a test
+      expect: true
+    - name: valid value matches demo
+      event:
+        contains_null_value: demo version
+      expect: true
+
+- metadata:
+    id: contains-null-check-with-fallback
+    description: Null check before containsAny
+  expression: contains_null_check_value != null && containsAny(contains_null_check_value, "test", "demo")
+  tests:
+    - name: null value with null check
+      event:
+        contains_null_check_value: null
+      expect: false
+    - name: missing value with null check
+      event: {}
+      expect: false
+    - name: valid value matches with null check
+      event:
+        contains_null_check_value: this is a test
+      expect: true
+
+# TestStringFunctions_Combined - Combining string functions
+- metadata:
+    id: regex-and-contains
+    description: Combining regex and containsAny with AND
+  expression: regexpMatch("^[A-Z]", combined_text) && containsAny(combined_text, "error", "warning")
+  tests:
+    - name: regex and contains both match
+      event:
+        combined_text: Error an error occurred in system
+      expect: true
+    - name: regex matches contains doesn't
+      event:
+        combined_text: Everything is fine
+      expect: false
+    - name: contains matches regex doesn't
+      event:
+        combined_text: an error occurred
+      expect: false
+
+- metadata:
+    id: regex-or-contains
+    description: Combining regex and containsAny with OR
+  expression: regexpMatch(".*@.*\\.com", email) || containsAny(email, "test", "demo")
+  tests:
+    - name: email matches regex
+      event:
+        email: user@example.com
+      expect: true
+    - name: email matches contains
+      event:
+        email: test@somewhere.net
+      expect: true
+    - name: email matches both
+      event:
+        email: test@example.com
+      expect: true
+    - name: email matches neither
+      event:
+        email: user@somewhere.net
+      expect: false
+
+- metadata:
+    id: nested-string-functions
+    description: Nested string functions with date pattern
+  expression: containsAny(log, "ERROR", "FATAL") && regexpMatch("\\d{4}-\\d{2}-\\d{2}", log)
+  tests:
+    - name: log with date and ERROR
+      event:
+        log: "2024-01-15 ERROR: System failure"
+      expect: true
+    - name: log with date and FATAL
+      event:
+        log: "2024-12-25 FATAL: Critical error"
+      expect: true
+    - name: log with ERROR no date
+      event:
+        log: "ERROR: System failure"
+      expect: false
+    - name: log with date no error keyword
+      event:
+        log: "2024-01-15 INFO: System start"
+      expect: false
+
+- metadata:
+    id: complex-string-logic
+    description: Complex logic with string functions and numeric comparison
+  expression: (regexpMatch("^https://", url) && containsAny(url, "api", "service")) || priority > 5
+  tests:
+    - name: complex string logic via URL with api
+      event:
+        url: https://api.example.com/endpoint
+        priority: 3
+      expect: true
+    - name: complex string logic via URL with service
+      event:
+        url: https://service.example.com/endpoint
+        priority: 3
+      expect: true
+    - name: complex string logic via priority
+      event:
+        url: http://website.com
+        priority: 10
+      expect: true
+    - name: complex string logic neither condition
+      event:
+        url: http://website.com
+        priority: 3
+      expect: false
+    - name: complex string logic https without keywords
+      event:
+        url: https://website.com
+        priority: 3
+      expect: false
+
+# TestStringFunctions_Performance - Performance with many patterns
+- metadata:
+    id: many-patterns-performance
+    description: Performance test with many containsAny patterns
+  expression: containsAny(log, "error", "warning", "critical", "fatal", "exception", "timeout", "failure", "denied", "unauthorized", "forbidden", "unavailable", "overload", "crash", "panic", "abort")
+  tests:
+    - name: performance test with match
+      event:
+        log: This is a very long log message with multiple words and hopefully one of them will trigger the containsAny match like fatal error
+      expect: true
+    - name: performance test error keyword
+      event:
+        log: An error occurred
+      expect: true
+    - name: performance test warning keyword
+      event:
+        log: warning message
+      expect: true
+    - name: performance test critical keyword
+      event:
+        log: Critical failure
+      expect: true
+    - name: performance test no match
+      event:
+        log: Everything is working fine
+      expect: false

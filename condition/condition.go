@@ -607,15 +607,18 @@ func (v BooleanOperand) GetKind() OperandKind {
 }
 
 func (v BooleanOperand) GetHash() uint64 {
+	// Use a large offset to avoid hash collisions with integers
+	// BooleanOperandKind is 4, use 4 << 32 as base offset
+	const boolHashOffset = uint64(BooleanOperandKind) << 32
 	if v {
-		return 1
+		return boolHashOffset + 1
 	} else {
-		return 0
+		return boolHashOffset + 0
 	}
 }
 
 func (v BooleanOperand) Equals(o immutable.SetElement) bool {
-	return v == o.(BooleanOperand)
+	return o.(Operand).GetKind() == BooleanOperandKind && v == o.(BooleanOperand)
 }
 
 func (v BooleanOperand) Greater(o Operand) bool {
@@ -882,7 +885,7 @@ func (v NullOperand) GetHash() uint64 {
 }
 
 func (v NullOperand) Equals(o immutable.SetElement) bool {
-	return false
+	return o.(Operand).GetKind() == NullOperandKind
 }
 
 func (v NullOperand) Greater(o Operand) bool {
@@ -937,9 +940,12 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 	case nil:
 		return NewNullOperand(nil)
 	case int:
-		return NewIntOperand(int64(n))
+		// Convert int to float64 for consistency with JSON decoding and rule parser behavior
+		// All numeric literals in rules are parsed as FloatOperand, so events should match
+		return NewFloatOperand(float64(n))
 	case int64:
-		return NewIntOperand(n)
+		// Convert int64 to float64 for consistency with JSON decoding and rule parser behavior
+		return NewFloatOperand(float64(n))
 	case string:
 		return NewStringOperand(n)
 	case float64:
@@ -959,6 +965,13 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 func ReconcileOperands(x, y Operand) (Operand, Operand) {
 	xkind := x.GetKind()
 	ykind := y.GetKind()
+
+	// Don't convert between boolean and numeric types
+	if (xkind == BooleanOperandKind && (ykind == IntOperandKind || ykind == FloatOperandKind)) ||
+		(ykind == BooleanOperandKind && (xkind == IntOperandKind || xkind == FloatOperandKind)) {
+		return x, y // Return without conversion
+	}
+
 	if xkind < ykind {
 		return x.Convert(y.GetKind()), y
 	} else if xkind > ykind {

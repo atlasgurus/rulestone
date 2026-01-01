@@ -2,6 +2,8 @@ package cateng
 
 import (
 	"fmt"
+	"sync/atomic"
+
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/types"
 )
@@ -36,16 +38,16 @@ func NewCategoryEngine(repo *condition.RuleRepo, options *Options) *CategoryEngi
 func applyCatSetMasks(csmList []*CatSetMask, matchMaskArray []types.Mask, result *[]condition.RuleIdType, f *CategoryEngine) {
 	for _, csm := range csmList {
 		v := matchMaskArray[csm.Index1-1]
-		f.Metrics.NumMaskArrayLookups++
+		atomic.AddUint64(&f.Metrics.NumMaskArrayLookups, 1)
 		if v != -1 {
 			newV := v | csm.Mask
 			matchMaskArray[csm.Index1-1] = newV
-			f.Metrics.NumBitMaskChecks++
+			atomic.AddUint64(&f.Metrics.NumBitMaskChecks, 1)
 			if newV == -1 {
 				// We got a match.
 				catSetFilter := f.FilterTables.CatSetFilters[csm.Index1-1]
 
-				f.Metrics.NumBitMaskMatches++
+				atomic.AddUint64(&f.Metrics.NumBitMaskMatches, 1)
 
 				// Process the synthetic categories from the set.
 				if len(catSetFilter.CatSetMasks) > 0 {

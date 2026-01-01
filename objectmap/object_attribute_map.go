@@ -380,14 +380,8 @@ func (attrMap *ObjectAttributeMap) GetAttributeByAddress(attrAddress []int, fram
 func (mapper *ObjectAttributeMapper) NewObjectAttributeMap() *ObjectAttributeMap {
 	obj := mapper.objectPool.Get().(*ObjectAttributeMap)
 	obj.DictRec = mapper.RootDictRec
-	if cap(obj.Values) < mapper.RootDictRec.numAttributes {
-		obj.Values = make([]interface{}, mapper.RootDictRec.numAttributes)
-	} else {
-		obj.Values = obj.Values[:0]                             // Clear the slice
-		for i := 0; i < mapper.RootDictRec.numAttributes; i++ { // Resize the slice
-			obj.Values = append(obj.Values, nil)
-		}
-	}
+	// Always allocate a new Values slice to avoid sharing backing arrays between goroutines
+	obj.Values = make([]interface{}, mapper.RootDictRec.numAttributes)
 
 	// Add the newly created object to the global list
 	mapper.mu.Lock()
@@ -430,7 +424,8 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 	case reflect.Slice:
 		attrDictRec, ok := dictRec.dict[path+"[]"]
 		if ok {
-			newAddress := append(address, attrDictRec.mapIndex, 0)
+			// Create new slice with its own backing array to avoid race conditions
+			newAddress := append(address[:len(address):len(address)], attrDictRec.mapIndex, 0)
 			for i, elem := range v.([]interface{}) {
 				newAddress[len(newAddress)-1] = i
 				newValues := make([]interface{}, attrDictRec.numAttributes)
@@ -447,7 +442,8 @@ func (mapper *ObjectAttributeMapper) buildObjectMap(
 	case reflect.Int, reflect.Int64, reflect.String, reflect.Float64, reflect.Bool, reflect.Invalid:
 		attrDictRec, ok := dictRec.dict[path]
 		if ok && attrDictRec.mapIndex != -1 {
-			newAddress := append(address, attrDictRec.mapIndex)
+			// Create new slice with its own backing array to avoid race conditions
+			newAddress := append(address[:len(address):len(address)], attrDictRec.mapIndex)
 			values[attrDictRec.mapIndex] = mapper.Config.MapScalar(v)
 			attrCallback(newAddress)
 		}

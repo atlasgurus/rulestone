@@ -25,10 +25,12 @@ type AttrDictionaryRec struct {
 // only store the fields referenced by the filters.  EventAttributeMap also allows
 // fast access to these fields when evaluating filters.
 type ObjectAttributeMapper struct {
-	RootDictRec *AttrDictionaryRec
-	Ctx         *types.AppContext
-	Config      MapperConfig
-	objectPool  *sync.Pool
+	RootDictRec    *AttrDictionaryRec
+	Ctx            *types.AppContext
+	Config         MapperConfig
+	objectPool     *sync.Pool
+	valuesPool     *sync.Pool
+	valuesPoolOnce sync.Once
 }
 
 type MapperConfig interface {
@@ -377,17 +379,35 @@ func (attrMap *ObjectAttributeMap) GetAttributeByAddress(attrAddress []int, fram
 func (mapper *ObjectAttributeMapper) NewObjectAttributeMap() *ObjectAttributeMap {
 	obj := mapper.objectPool.Get().(*ObjectAttributeMap)
 	obj.DictRec = mapper.RootDictRec
-	// Always allocate a new Values slice to avoid sharing backing arrays between goroutines
-	obj.Values = make([]interface{}, mapper.RootDictRec.numAttributes)
+
+	// Lazily initialize valuesPool on first use (when numAttributes is known)
+	// Use sync.Once to ensure thread-safe initialization
+	mapper.valuesPoolOnce.Do(func() {
+		numAttrs := mapper.RootDictRec.numAttributes
+		mapper.valuesPool = &sync.Pool{
+			New: func() interface{} {
+				return make([]interface{}, numAttrs)
+			},
+		}
+	})
+
+	// Get Values slice from pool and clear it
+	values := mapper.valuesPool.Get().([]interface{})
+	for i := range values {
+		values[i] = nil
+	}
+	obj.Values = values
 	return obj
 }
 
 // FreeObject returns a single ObjectAttributeMap to the pool
 func (mapper *ObjectAttributeMapper) FreeObject(obj *ObjectAttributeMap) {
-	// Clear the Values slice to allow GC of referenced objects
-	for i := range obj.Values {
-		obj.Values[i] = nil
+	// Return Values slice to pool (if pool is initialized)
+	if mapper.valuesPool != nil && obj.Values != nil {
+		mapper.valuesPool.Put(obj.Values)
 	}
+	obj.Values = nil
+	obj.OriginalEvent = nil
 	mapper.objectPool.Put(obj)
 }
 

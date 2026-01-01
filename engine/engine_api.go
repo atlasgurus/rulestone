@@ -513,7 +513,7 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 			panic("should not get here")
 		}
 	})
-	f.compCondRepo.ObjectAttributeMapper.FreeObjects()
+	f.compCondRepo.ObjectAttributeMapper.FreeObject(event)
 	return f.catEngine.MatchEvent(eventCategories)
 }
 

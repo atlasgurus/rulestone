@@ -29,9 +29,6 @@ type ObjectAttributeMapper struct {
 	Ctx         *types.AppContext
 	Config      MapperConfig
 	objectPool  *sync.Pool
-	mu          sync.Mutex
-	// Global list to keep track of all allocated *ObjectAttributeMap
-	objectList []*ObjectAttributeMap
 }
 
 type MapperConfig interface {
@@ -382,24 +379,16 @@ func (mapper *ObjectAttributeMapper) NewObjectAttributeMap() *ObjectAttributeMap
 	obj.DictRec = mapper.RootDictRec
 	// Always allocate a new Values slice to avoid sharing backing arrays between goroutines
 	obj.Values = make([]interface{}, mapper.RootDictRec.numAttributes)
-
-	// Add the newly created object to the global list
-	mapper.mu.Lock()
-	mapper.objectList = append(mapper.objectList, obj)
-	mapper.mu.Unlock()
-
 	return obj
 }
 
-func (mapper *ObjectAttributeMapper) FreeObjects() {
-	// Return all allocated objects to the pool
-	mapper.mu.Lock()
-	for _, obj := range mapper.objectList {
-		mapper.objectPool.Put(obj)
+// FreeObject returns a single ObjectAttributeMap to the pool
+func (mapper *ObjectAttributeMapper) FreeObject(obj *ObjectAttributeMap) {
+	// Clear the Values slice to allow GC of referenced objects
+	for i := range obj.Values {
+		obj.Values[i] = nil
 	}
-	// Clear the global list
-	mapper.objectList = nil
-	mapper.mu.Unlock()
+	mapper.objectPool.Put(obj)
 }
 
 func (mapper *ObjectAttributeMapper) buildObjectMap(

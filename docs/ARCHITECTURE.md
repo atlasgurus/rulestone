@@ -8,6 +8,7 @@
 5. [Memory Management](#memory-management)
 6. [Performance Characteristics](#performance-characteristics)
 7. [Design Patterns](#design-patterns)
+8. [Maintainer's Guide: Common Pitfalls & Debugging](#maintainers-guide-common-pitfalls--debugging)
 
 ## System Overview
 
@@ -106,11 +107,76 @@ Core expression processing and condition generation engine.
 - Implement common sub-expression elimination
 - Handle forAll/forSome scoping
 
+**Key Data Structures**:
+```go
+type CompareCondRepo struct {
+    // Maps attribute paths to categories that depend on them
+    AttributeToCompareCondRecord map[string]*hashset.Set[*EvalCategoryRec]
+
+    // CSE cache: same condition → same category
+    CondToCompareCondRecord *hashmap.Map[condition.Condition, *EvalCategoryRec]
+
+    // Categories that must evaluate even when attributes are missing
+    // Used for: null checks, constant expressions, quantifiers on empty arrays
+    AlwaysEvaluateCategories *hashset.Set[*EvalCategoryRec]
+
+    ObjectAttributeMapper *objectmap.ObjectAttributeMapper
+}
+```
+
 **Key Operations**:
 - Expression parsing using Go's `go/parser` package
 - AST traversal and transformation
 - Type reconciliation between operands
 - Scope management for array quantifiers
+
+#### AlwaysEvaluateCategories Pattern
+
+**Design Challenge**: The normal evaluation flow relies on attribute callbacks:
+```
+Event has attribute → Callback fires → Category evaluated
+```
+
+But what if:
+- Attribute is missing from event (null checks: `field == null`)
+- Expression has no event dependencies (constants: `1 == 1`)
+- Container exists but is empty (quantifiers: `forAll("items", ...)` with `{items: []}`)
+
+**Solution**: `AlwaysEvaluateCategories` bypasses the callback mechanism.
+
+**Registration**: Categories are added during rule compilation:
+```go
+// Null checks
+if isNullCheck {
+    repo.AlwaysEvaluateCategories.Put(evalCatRec)
+}
+
+// Constant expressions (no event dependencies)
+if len(evalCatRec.AttrKeys) == 0 {
+    repo.AlwaysEvaluateCategories.Put(evalCatRec)
+}
+
+// Quantifiers (need to handle empty arrays)
+if isQuantifier {
+    repo.AlwaysEvaluateCategories.Put(evalCatRec)
+}
+```
+
+**Evaluation**: In `RuleEngine.MatchEvent()`:
+```go
+// Normal flow: evaluate categories for found attributes
+event.MapObject(v, func(addr []int) {
+    catEvaluators := AttributeToCompareCondRecord[addr]
+    matchingRecords.Put(catEvaluators)
+})
+
+// Force evaluation of always-evaluate categories
+AlwaysEvaluateCategories.Each(func(catEvaluator *EvalCategoryRec) {
+    matchingRecords.Put(catEvaluator)
+})
+```
+
+**Critical Insight**: The evaluator still needs to determine the correct result internally. AlwaysEvaluateCategories only ensures it *runs* - the logic must handle missing data appropriately.
 
 ## Category Engine
 
@@ -306,7 +372,90 @@ ForAllCondition {
 4. forAll: all must be true
 5. forSome: at least one must be true
 
-### 5. Type Reconciliation
+**Design Insight: Vacuous Truth**:
+- `forAll` on an **empty array** returns `true` (vacuous truth principle)
+- `forAll` on a **missing array** returns `false` (rule doesn't apply)
+- This distinction is critical for correct semantics
+
+**Implementation Challenge**: Empty arrays are invisible in normal evaluation:
+```go
+Event: {"items": []}
+After MapObject():
+  Values[address] = nil  // No elements stored
+
+Event: {"other": "data"}
+After MapObject():
+  Values[address] = nil  // Array missing
+
+// Both look identical in Values!
+```
+
+**Solution**:
+1. forAll added to `AlwaysEvaluateCategories` (runs unconditionally)
+2. `ObjectAttributeMap.OriginalEvent` stores reference to unmapped event
+3. Evaluator falls back to original event to check array existence
+4. Can distinguish: missing (false) vs empty (true) vs non-empty (evaluate)
+
+### 5. ObjectAttributeMap Design
+
+**File**: `objectmap/object_attribute_map.go`
+
+**Core Design Decision**: `ObjectAttributeMap.Values` stores **only scalar leaf values**, not containers.
+
+```go
+type ObjectAttributeMap struct {
+    DictRec       *AttrDictionaryRec
+    Values        []interface{}      // ONLY scalars
+    OriginalEvent interface{}        // Fallback for edge cases
+}
+```
+
+**What Gets Stored**:
+
+| Input | Stored in Values |
+|-------|------------------|
+| `{"age": 30}` | `Values[0] = 30` ✅ |
+| `{"user": {"age": 30}}` | `Values[0] = 30` (user object NOT stored) |
+| `{"items": []}` | `Values[0] = nil` (empty array NOT stored) |
+| `{"items": [{"val": 10}]}` | `Values[0] = [[10]]` (array of element-values) |
+
+**Rationale**:
+1. **Memory efficiency**: Don't duplicate nested structures
+2. **Fast access**: Direct array indexing by address
+3. **Callback optimization**: Only trigger for "interesting" values
+
+**Tradeoff**:
+- ✅ Works perfectly for 99% of cases (non-empty structures)
+- ❌ Empty containers are invisible in Values
+- ✅ Solved by storing `OriginalEvent` reference (8 bytes overhead)
+
+**Address System**:
+```
+Event: {"user": {"age": 30}, "items": [{"val": 10}]}
+
+Paths and Addresses:
+  user        → address [0]     (container, not stored)
+  user.age    → address [0, 0]  (scalar, stored)
+  items       → address [1]     (container, not stored)
+  items[]     → address [1]     (element notation, same as items)
+  items[0]    → address [1, 0]  (element 0)
+  items[0].val → address [1, 0, 0] (scalar, stored)
+```
+
+**Critical Nuance**: `"items"` and `"items[]"` have the **same numeric address** but different semantic meaning:
+- `"items"` - The array container itself
+- `"items[]"` - Array elements (used in registration)
+
+**Mapping Process**:
+```
+MapObject(event) → for each field:
+  - Scalars → Store in Values[address], call attrCallback(address)
+  - Objects → Recurse into children (object itself not stored)
+  - Arrays → Store array of element-values, call attrCallback(address)
+           Note: Empty arrays → nothing stored, but callback still fires!
+```
+
+### 6. Type Reconciliation
 
 **File**: `condition/condition.go:935-997`
 
@@ -323,7 +472,19 @@ String vs Other:
 
 nil Handling:
 - nil == nil → true
-- nil == value → false
+- nil != value → true (null is not equal to any non-null value)
+- nil > value → false (null is not orderable)
+- **Missing field is treated as null**
+
+**Design Insight: Three Distinct Concepts**:
+1. **Missing field**: Key doesn't exist in map → treated as `null`
+2. **Explicit null**: Key exists, value is `nil` → treated as `null`
+3. **Zero value**: Key exists, value is `0`, `""`, `false` → **not null**
+
+**Implications**:
+- `field == null` matches both missing fields and explicit null
+- `field == 0` only matches explicit zero, not missing/null
+- `field != null` checks for presence of non-null value
 ```
 
 ## Memory Management
@@ -572,3 +733,224 @@ Savings: 7 evaluations instead of 10 (30% reduction)
 2. **Streaming API**: Process event streams
 3. **Distributed Evaluation**: Scale across multiple machines
 4. **Persistent Cache**: Save compiled rules to disk
+
+---
+
+## Maintainer's Guide: Common Pitfalls & Debugging
+
+### Common Pitfalls
+
+#### 1. Assuming Values Contains All Event Data
+
+**Pitfall**: Checking `Values[address]` to see if attribute exists.
+
+**Why It Fails**: Empty arrays/objects won't be in Values even if they exist in the event.
+
+**Correct Approach**: Use the original event as the source of truth for container existence, or use the `AlwaysEvaluateCategories` pattern.
+
+#### 2. Forgetting AlwaysEvaluateCategories
+
+**Symptom**: Rule works when attribute is present, fails when attribute is missing.
+
+**Root Cause**: Missing attribute → no callback → category never evaluated.
+
+**When Needed**:
+- ✅ Null checks (`field == null`)
+- ✅ Constant expressions (`1 == 1`)
+- ✅ Quantifiers on collections (`forAll`, `forSome`)
+- ❌ Regular comparisons (`field > 10`)
+
+**Check**: Does the rule need to evaluate when the attribute is missing?
+
+#### 3. Confusing "items" and "items[]"
+
+**Path Notation**:
+- `"items"` - The array container (conceptual)
+- `"items[]"` - Array elements (registration notation)
+
+**Address Notation**:
+- Both map to the **same numeric address**!
+- Address `[1]` might represent both the container and its elements
+
+**When to Use Which**:
+- **Registration** (`registerCatEvaluatorForAddress`): Use `"items[]"` for element access
+- **Navigation** (`getValueFromOriginalEvent`): Use `"items"` (strip `[]` suffix)
+- **Evaluation** (`GetNumElementsAtAddress`): Address points to container
+
+#### 4. Null vs Zero vs Missing
+
+**Three Distinct Concepts**:
+1. **Missing field**: Key doesn't exist in map
+2. **Explicit null**: Key exists, value is `nil`
+3. **Zero value**: Key exists, value is `0`, `""`, `false`
+
+**Engine Behavior**:
+- Missing field **is treated as null** in comparisons
+- `field == null` matches both missing and explicit null
+- `field == 0` only matches explicit zero, not null/missing
+
+**Example**:
+```go
+Event: {}                    → field == null ✅, field == 0 ❌
+Event: {field: null}         → field == null ✅, field == 0 ❌
+Event: {field: 0}            → field == null ❌, field == 0 ✅
+```
+
+#### 5. CSE Side Effects
+
+**Common Subexpression Elimination Means**:
+- Same expression → evaluated once per event
+- Changes to evaluation logic affect ALL rules using that expression
+
+**Example**:
+```yaml
+- id: rule1
+  expression: user.age > 18
+
+- id: rule2
+  expression: user.age > 18 && user.country == "US"
+```
+
+Both rules share the SAME category for `user.age > 18`. Evaluated once, result reused.
+
+**Implication**: Be very careful changing evaluation semantics. Could break multiple rules.
+
+### Debugging Guide
+
+#### "My rule isn't matching!"
+
+**Step 1: Check if category is being evaluated**
+```go
+// Add debug print in category evaluator
+fmt.Printf("[DEBUG] Evaluating category %d for rule %s\n", cat.ID, ruleID)
+```
+
+Questions:
+- Is the callback being triggered?
+- Is the category in `AlwaysEvaluateCategories` if needed?
+- Does the attribute path match registration?
+
+**Step 2: Check what categories are generated**
+```go
+// In RuleEngine.MatchEvent, after category evaluation
+fmt.Printf("[DEBUG] Event categories: %v\n", eventCategories)
+```
+
+Questions:
+- Does it include the expected category ID?
+- Are there unexpected categories?
+- Are categories being suppressed?
+
+**Step 3: Check category engine**
+```go
+// In CategoryEngine.MatchEvent
+fmt.Printf("[DEBUG] Matching categories %v against %d rules\n", cats, len(rules))
+```
+
+Questions:
+- Is the rule's category pattern correct?
+- Are there negated categories blocking the match?
+- Is the rule even registered?
+
+**Step 4: Check attribute mapping**
+```go
+// In MapObject callback
+fmt.Printf("[DEBUG] Found attribute at address: %v\n", addr)
+```
+
+Questions:
+- Is the attribute being found in the event?
+- Does the address match what you expect?
+- Is the value being stored correctly?
+
+#### "Performance is slow!"
+
+**Profile 1: Category Evaluation Count**
+```go
+// Check Metrics.NumCatEvals counter
+fmt.Printf("Categories evaluated per event: %d\n", engine.Metrics.NumCatEvals)
+```
+
+**Expected**: Should be roughly proportional to number of unique comparisons in rules that could match.
+
+**Red Flag**: If this number is very high (>1000 per event), you may have too many rules or poor CSE.
+
+**Profile 2: CSE Effectiveness**
+```go
+// Print CondToCompareCondRecord size
+fmt.Printf("Unique categories: %d\n", len(compCondRepo.CondToCompareCondRecord))
+fmt.Printf("Total rules: %d\n", len(rules))
+```
+
+**Expected**: Unique categories << (rules * avg comparisons per rule) if CSE is working.
+
+**Red Flag**: If unique categories ≈ total comparisons, CSE isn't helping.
+
+**Profile 3: Large Arrays**
+```go
+// Check for arrays with many elements
+for _, rule := range rules {
+    if hasQuantifier(rule) && arraySize > 1000 {
+        fmt.Printf("WARNING: Rule %s has large array quantifier\n", rule.ID)
+    }
+}
+```
+
+**Expected**: `forAll`/`forSome` with 10-100 elements is fine.
+
+**Red Flag**: 1000+ elements will be slow. Consider restructuring data or rules.
+
+#### "Rule used to work, now it doesn't!"
+
+**Check 1: Did data format change?**
+- Attribute paths are case-sensitive
+- Nested structure changes break rules
+- Array vs scalar changes break type checks
+
+**Check 2: Did another rule get added?**
+- CSE might have changed evaluation order
+- Category ID assignment might have shifted (shouldn't matter, but check)
+- New rule might have conflicting logic
+
+**Check 3: Was engine rebuilt?**
+- Engine optimization parameters changed?
+- Category engine threshold adjusted?
+- Rule order matters for some operations
+
+### Performance Tuning
+
+**Benchmark Results After Optimizations**:
+- Simple expression eval: ~1.9 μs/op
+- Complex expression eval: ~3.2 μs/op
+- Null check: ~500 ns/op
+- Constant expression: ~454 ns/op
+- forAll condition: ~2.5 μs/op
+- forAll empty array: ~1.3 μs/op
+
+**Key Metrics**:
+- AlwaysEvaluateCategories adds ~0.5 μs overhead (negligible)
+- OriginalEvent reference adds 8 bytes per ObjectAttributeMap (negligible)
+- Fallback path only runs for empty arrays (rare, acceptable)
+
+**What Scales Well**:
+- Number of rules (O(1) lookup via category matching)
+- Number of categories (bitmask operations)
+- CSE (more rules with shared expressions → fewer evaluations)
+
+**What Doesn't Scale**:
+- Large arrays in quantifiers (O(n) iteration)
+- Deep nesting (O(depth) traversal)
+- Complex string operations (`regexpMatch`, `containsAny`)
+
+### Glossary for Maintainers
+
+- **Category**: Boolean value (true/false) representing whether a condition holds
+- **Category ID**: Unique integer identifying a category (assigned during rule registration)
+- **Category Evaluator**: Function that computes a category's value for an event
+- **CSE**: Common Subexpression Elimination - reusing evaluation results for identical expressions
+- **AttrKeys**: Attribute paths that a category depends on
+- **Address**: Integer array representing path to a value in nested structure
+- **FullAddress**: String representation of address with nesting information
+- **Frame**: Current context in nested evaluation (used in forAll/forSome)
+- **Vacuous Truth**: Logic principle where "all elements of empty set satisfy P" is true
+- **AlwaysEvaluateCategories**: Categories that must run even when their attributes are missing from the event

@@ -428,7 +428,7 @@
       expect: false
 
 - metadata:
-    id: complex
+    id: multiple-complex
     description: Complex arithmetic and string comparison
   expression: (complexA + complexB) * complexC > 100 && complexD == "test"
   tests:
@@ -810,7 +810,7 @@
 
 # TestMultipleRules_EmptyEventHandling - How multiple rules handle empty events
 - metadata:
-    id: null-check
+    id: null-field-check
     description: Value is null
   expression: nullCheckField == null
   tests:

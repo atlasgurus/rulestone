@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"sync"
+
 	"github.com/atlasgurus/rulestone/condition"
 	"github.com/cloudflare/ahocorasick"
 )
@@ -19,6 +21,7 @@ func contains(text string, patterns []string) []string {
 }
 
 type StringMatcher struct {
+	mu         sync.Mutex // Protects machine.Match() which modifies internal state
 	machine    *ahocorasick.Matcher
 	patterns   []string
 	categories [][]condition.Operand
@@ -50,7 +53,11 @@ func (sm *StringMatcher) Match(text string) []condition.Operand {
 	if sm.machine == nil {
 		panic("StringMatcher not built")
 	}
+
+	// The ahocorasick library's Match() modifies internal state and is not thread-safe
+	sm.mu.Lock()
 	hits := sm.machine.Match([]byte(text))
+	sm.mu.Unlock()
 
 	// Deduplicate categories using a hash set
 	seen := make(map[uint64]bool)

@@ -43,7 +43,7 @@ func NewRuleEngineRepo() *RuleEngineRepo {
 	return &RuleEngineRepo{
 		ctx:      ctx,
 		ruleApi:  NewRuleApi(ctx),
-		Optimize: true, // Default to optimized mode
+		Optimize: false, // Default to non-optimized mode, set explicitly if needed
 	}
 }
 

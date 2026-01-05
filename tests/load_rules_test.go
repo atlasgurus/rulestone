@@ -11,11 +11,11 @@ import (
 func TestLoadRules_WithValidation(t *testing.T) {
 	repo := engine.NewRuleEngineRepo()
 
-	result, err := repo.LoadRulesFromFile("data/simple_rules_with_tests.yaml", engine.LoadOptions{
-		Validate:   true,
-		RunTests:   true,
-		FileFormat: "yaml",
-	})
+	result, err := repo.LoadRulesFromFile("data/simple_rules_with_tests.yaml",
+		engine.WithValidate(true),
+		engine.WithRunTests(true),
+		engine.WithFileFormat("yaml"),
+	)
 
 	if err != nil {
 		t.Fatalf("Failed to load rules: %v", err)
@@ -51,11 +51,11 @@ func TestLoadRules_WithValidation(t *testing.T) {
 func TestLoadRules_WithoutValidation(t *testing.T) {
 	repo := engine.NewRuleEngineRepo()
 
-	result, err := repo.LoadRulesFromFile("data/simple_rules_with_tests.yaml", engine.LoadOptions{
-		Validate:   false,
-		RunTests:   false,
-		FileFormat: "yaml",
-	})
+	result, err := repo.LoadRulesFromFile("data/simple_rules_with_tests.yaml",
+		engine.WithValidate(false),
+		engine.WithRunTests(false),
+		engine.WithFileFormat("yaml"),
+	)
 
 	if err != nil {
 		t.Fatalf("Failed to load rules: %v", err)
@@ -81,11 +81,11 @@ func TestLoadRules_InvalidRule(t *testing.T) {
 `
 
 	repo := engine.NewRuleEngineRepo()
-	result, err := repo.LoadRules(strings.NewReader(invalidRules), engine.LoadOptions{
-		Validate:   true,
-		RunTests:   false,
-		FileFormat: "yaml",
-	})
+	result, err := repo.LoadRules(strings.NewReader(invalidRules),
+		engine.WithValidate(true),
+		engine.WithRunTests(false),
+		engine.WithFileFormat("yaml"),
+	)
 
 	// Either parsing fails immediately (err != nil) or validation catches it
 	if err != nil {

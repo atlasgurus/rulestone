@@ -44,11 +44,11 @@ func main() {
     repo := engine.NewRuleEngineRepo()
 
     // Load rules with validation and testing
-    result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-        Validate:   true,  // Validate expressions
-        RunTests:   true,  // Execute built-in tests
-        FileFormat: "yaml",
-    })
+    result, err := repo.LoadRulesFromFile("rules.yaml",
+        engine.WithValidate(true),   // Validate expressions
+        engine.WithRunTests(true),    // Execute built-in tests
+        engine.WithFileFormat("yaml"),
+    )
     if err != nil {
         panic(err)
     }
@@ -142,36 +142,46 @@ func main() {
 
 ## API Reference
 
-### LoadOptions
+### Load Options
 
-Controls rule loading behavior:
+Control rule loading behavior using functional options:
 
 ```go
-type LoadOptions struct {
-    Validate   bool   // If true, validate expressions during load
-    RunTests   bool   // If true, execute test cases
-    FileFormat string // "yaml", "json", or "" for auto-detect
-}
+// Available options:
+engine.WithValidate(bool)      // Enable/disable expression validation
+engine.WithRunTests(bool)      // Enable/disable test execution
+engine.WithFileFormat(string)  // Set format: "yaml", "json", or "" for auto-detect
+engine.WithOptimize(bool)      // Enable/disable category engine optimizations
+
+// Example usage:
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+    engine.WithRunTests(true),
+)
 ```
 
 ### Engine Optimization
 
-Control category engine optimizations via the repo:
+Control category engine optimizations using the `WithOptimize` option:
 
 ```go
 repo := engine.NewRuleEngineRepo()
 
-// Default is optimized (true)
-repo.LoadRules(reader, engine.LoadOptions{})
+// Default is non-optimized (false)
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+)
 
-// Disable optimization if needed
-repo.Optimize = false
-repo.LoadRules(reader, engine.LoadOptions{})
+// Enable optimization for better performance
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+    engine.WithOptimize(true),
+)
 ```
 
 **Optimization modes:**
-- **Optimized** (default): Applies AND-set optimizations for better matching performance
-- **Non-optimized**: Disables optimizations for simpler engine structure (useful for debugging)
+- **Non-optimized** (default): Simpler engine structure, useful for debugging
+- **Optimized**: Applies AND-set optimizations for better matching performance
 
 ### LoadResult
 
@@ -199,25 +209,25 @@ for _, ft := range result.GetFailedTests() {
 
 ```go
 // From file
-result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-    Validate: true,
-    RunTests: true,
-})
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+    engine.WithRunTests(true),
+)
 
 // From string
 rulesYAML := `- metadata: {id: test}
   expression: a == 1`
-result, err := repo.LoadRulesFromString(rulesYAML, engine.LoadOptions{
-    Validate: true,
-})
+result, err := repo.LoadRulesFromString(rulesYAML,
+    engine.WithValidate(true),
+)
 
 // From io.Reader (database, S3, HTTP, etc.)
 rulesData := fetchFromDatabase()
 reader := bytes.NewReader(rulesData)
-result, err := repo.LoadRules(reader, engine.LoadOptions{
-    Validate:   false,  // Skip validation for trusted source
-    FileFormat: "json",
-})
+result, err := repo.LoadRules(reader,
+    engine.WithValidate(false),  // Skip validation for trusted source
+    engine.WithFileFormat("json"),
+)
 ```
 
 ## Workflows
@@ -228,10 +238,10 @@ Full validation and testing during development:
 
 ```go
 repo := engine.NewRuleEngineRepo()
-result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-    Validate: true,  // Validate all expressions
-    RunTests: true,  // Run all built-in tests
-})
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),  // Validate all expressions
+    engine.WithRunTests(true),  // Run all built-in tests
+)
 
 if !result.ValidationOK {
     log.Fatal("Validation failed")
@@ -250,20 +260,20 @@ Validate rules in CI, skip validation in production:
 ```go
 // CI: Validate and test
 tmpRepo := engine.NewRuleEngineRepo()
-result, err := tmpRepo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-    Validate: true,
-    RunTests: true,
-})
+result, err := tmpRepo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+    engine.WithRunTests(true),
+)
 if err != nil || !result.ValidationOK {
     os.Exit(1)  // Fail CI build
 }
 
 // Production: Skip validation (already validated in CI)
 repo := engine.NewRuleEngineRepo()
-result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-    Validate: false,  // Trusted source
-    RunTests: false,  // Skip tests in prod
-})
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(false),  // Trusted source
+    engine.WithRunTests(false),  // Skip tests in prod
+)
 ```
 
 ### Hot Reload Workflow
@@ -273,10 +283,10 @@ Validate new rules before swapping:
 ```go
 // Validate in temporary repository first
 tmpRepo := engine.NewRuleEngineRepo()
-result, err := tmpRepo.LoadRules(newRulesReader, engine.LoadOptions{
-    Validate: true,
-    RunTests: true,
-})
+result, err := tmpRepo.LoadRules(newRulesReader,
+    engine.WithValidate(true),
+    engine.WithRunTests(true),
+)
 if err != nil || !result.ValidationOK {
     return fmt.Errorf("invalid rules")
 }
@@ -401,10 +411,10 @@ func TestDataDrivenRules(t *testing.T) {
     for _, file := range files {
         t.Run(filepath.Base(file), func(t *testing.T) {
             repo := engine.NewRuleEngineRepo()
-            result, err := repo.LoadRulesFromFile(file, engine.LoadOptions{
-                Validate: true,
-                RunTests: true,
-            })
+            result, err := repo.LoadRulesFromFile(file,
+                engine.WithValidate(true),
+                engine.WithRunTests(true),
+            )
             // Check results...
         })
     }
@@ -431,10 +441,10 @@ eng, _ := engine.NewRuleEngine(repo)
 New API (v2):
 ```go
 repo := engine.NewRuleEngineRepo()
-result, err := repo.LoadRulesFromFile("rules.yaml", engine.LoadOptions{
-    Validate: true,
-    RunTests: true,
-})
+result, err := repo.LoadRulesFromFile("rules.yaml",
+    engine.WithValidate(true),
+    engine.WithRunTests(true),
+)
 if !result.ValidationOK {
     // Handle validation errors
 }

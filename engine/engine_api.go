@@ -39,11 +39,53 @@ type ruleInfo struct {
 	tests      []TestCase
 }
 
-// LoadOptions controls rule loading behavior
-type LoadOptions struct {
-	Validate   bool   // If true, validate expressions during load (default: true)
-	RunTests   bool   // If true, execute test cases (default: true)
-	FileFormat string // "yaml", "json", or "" for auto-detect from file extension
+// LoadOption is a functional option for configuring rule loading
+type LoadOption func(*loadConfig)
+
+// loadConfig holds the configuration for rule loading
+type loadConfig struct {
+	validate   bool
+	runTests   bool
+	fileFormat string
+	optimize   bool
+}
+
+// defaultLoadConfig returns the default configuration for rule loading
+func defaultLoadConfig() *loadConfig {
+	return &loadConfig{
+		validate:   true,
+		runTests:   false,
+		fileFormat: "",
+		optimize:   false, // Default: no optimization
+	}
+}
+
+// WithValidate enables or disables expression validation during load
+func WithValidate(validate bool) LoadOption {
+	return func(c *loadConfig) {
+		c.validate = validate
+	}
+}
+
+// WithRunTests enables or disables test execution during load
+func WithRunTests(runTests bool) LoadOption {
+	return func(c *loadConfig) {
+		c.runTests = runTests
+	}
+}
+
+// WithFileFormat specifies the file format ("yaml", "json", or "" for auto-detect)
+func WithFileFormat(format string) LoadOption {
+	return func(c *loadConfig) {
+		c.fileFormat = format
+	}
+}
+
+// WithOptimize enables or disables category engine optimizations
+func WithOptimize(optimize bool) LoadOption {
+	return func(c *loadConfig) {
+		c.optimize = optimize
+	}
 }
 
 // TestResult contains the result of executing a single test case
@@ -215,8 +257,17 @@ func (repo *RuleEngineRepo) RegisterRulesFromFile(path string) ([]uint, error) {
 	return ruleIds, nil
 }
 
-// LoadRules loads rules from an io.Reader with optional validation and testing
-func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*LoadResult, error) {
+// LoadRules loads rules from an io.Reader with optional configuration
+func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts ...LoadOption) (*LoadResult, error) {
+	// Apply functional options
+	config := defaultLoadConfig()
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	// Set optimization mode on repo
+	repo.Optimize = config.optimize
+
 	result := &LoadResult{
 		RuleIDs:      make([]uint, 0),
 		ValidationOK: true,
@@ -226,7 +277,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 
 	// Parse rules from reader
 	var externalRules []ExternalRule
-	switch strings.ToLower(opts.FileFormat) {
+	switch strings.ToLower(config.fileFormat) {
 	case "json":
 		decoder := json.NewDecoder(reader)
 		if err := decoder.Decode(&externalRules); err != nil {
@@ -239,7 +290,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 			return nil, repo.ctx.Errorf("error parsing YAML: %s", err)
 		}
 	default:
-		return nil, repo.ctx.Errorf("unsupported file format: %s", opts.FileFormat)
+		return nil, repo.ctx.Errorf("unsupported file format: %s", config.fileFormat)
 	}
 
 	// Track rule ID mapping for testing
@@ -265,7 +316,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 
 		// Check for missing expression
 		if extRule.Expression == "" {
-			if opts.Validate {
+			if config.validate {
 				result.ValidationOK = false
 				result.Errors = append(result.Errors, repo.ctx.Errorf("%s: missing or empty expression", ruleDescriptor))
 				continue // Skip this rule
@@ -278,7 +329,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 		var internalRule *InternalRule
 		var err error
 
-		if opts.Validate {
+		if config.validate {
 			// Validate by parsing expression
 			internalRule, err = externalToInternalRule(&extRule)
 			if err != nil {
@@ -300,7 +351,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 		result.RuleIDs = append(result.RuleIDs, ruleInternalID)
 
 		// Save test info for later execution
-		if opts.RunTests && len(extRule.Tests) > 0 {
+		if config.runTests && len(extRule.Tests) > 0 {
 			ruleInfos = append(ruleInfos, ruleInfo{
 				internalID: ruleInternalID,
 				externalID: ruleID,
@@ -310,7 +361,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 	}
 
 	// Validate by attempting to create engine if requested
-	if opts.Validate {
+	if config.validate {
 		_, err := NewRuleEngine(repo)
 		if err != nil {
 			result.ValidationOK = false
@@ -319,7 +370,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 	}
 
 	// Run tests if requested (create engine once for all tests)
-	if opts.RunTests && len(ruleInfos) > 0 {
+	if config.runTests && len(ruleInfos) > 0 {
 		testResults := repo.runAllTests(ruleInfos)
 		result.TestResults = append(result.TestResults, testResults...)
 	}
@@ -328,7 +379,7 @@ func (repo *RuleEngineRepo) LoadRules(reader io.Reader, opts LoadOptions) (*Load
 }
 
 // LoadRulesFromFile is a convenience wrapper for LoadRules that loads from a file
-func (repo *RuleEngineRepo) LoadRulesFromFile(path string, opts LoadOptions) (*LoadResult, error) {
+func (repo *RuleEngineRepo) LoadRulesFromFile(path string, opts ...LoadOption) (*LoadResult, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -336,20 +387,26 @@ func (repo *RuleEngineRepo) LoadRulesFromFile(path string, opts LoadOptions) (*L
 	defer f.Close()
 
 	// Auto-detect file format from extension if not specified
-	if opts.FileFormat == "" {
+	config := defaultLoadConfig()
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	if config.fileFormat == "" {
 		ext := filepath.Ext(path)
 		if len(ext) > 0 {
-			opts.FileFormat = ext[1:] // Remove the dot
+			// Add file format option based on extension
+			opts = append(opts, WithFileFormat(ext[1:]))
 		}
 	}
 
-	return repo.LoadRules(f, opts)
+	return repo.LoadRules(f, opts...)
 }
 
 // LoadRulesFromString is a convenience wrapper for LoadRules that loads from a string
-func (repo *RuleEngineRepo) LoadRulesFromString(content string, opts LoadOptions) (*LoadResult, error) {
+func (repo *RuleEngineRepo) LoadRulesFromString(content string, opts ...LoadOption) (*LoadResult, error) {
 	reader := strings.NewReader(content)
-	return repo.LoadRules(reader, opts)
+	return repo.LoadRules(reader, opts...)
 }
 
 // runAllTests executes test cases for all rules and returns test results

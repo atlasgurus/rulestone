@@ -26,7 +26,7 @@ func TestMultiRuleInteraction(t *testing.T) {
 `
 
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.LoadRulesFromString(rulesYAML, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rulesYAML, engine.WithValidate(true))
 	if err != nil {
 		t.Fatalf("Failed to load rules: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestMultiRuleConcurrentInteraction(t *testing.T) {
 `
 
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.LoadRulesFromString(rulesYAML, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rulesYAML, engine.WithValidate(true))
 	if err != nil {
 		t.Fatalf("Failed to load rules: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestMultiRuleSharedAttributes(t *testing.T) {
 `
 
 	repo := engine.NewRuleEngineRepo()
-	_, err := repo.LoadRulesFromString(rulesYAML, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rulesYAML, engine.WithValidate(true))
 	if err != nil {
 		t.Fatalf("Failed to load rules: %v", err)
 	}

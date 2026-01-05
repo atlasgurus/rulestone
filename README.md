@@ -154,6 +154,25 @@ type LoadOptions struct {
 }
 ```
 
+### Engine Optimization
+
+Control category engine optimizations via the repo:
+
+```go
+repo := engine.NewRuleEngineRepo()
+
+// Default is optimized (true)
+repo.LoadRules(reader, engine.LoadOptions{})
+
+// Disable optimization if needed
+repo.Optimize = false
+repo.LoadRules(reader, engine.LoadOptions{})
+```
+
+**Optimization modes:**
+- **Optimized** (default): Applies AND-set optimizations for better matching performance
+- **Non-optimized**: Disables optimizations for simpler engine structure (useful for debugging)
+
 ### LoadResult
 
 Contains results of rule loading:

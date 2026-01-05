@@ -40,7 +40,11 @@ func (repo *RuleEngineRepo) GetAppCtx() *types.AppContext {
 
 func NewRuleEngineRepo() *RuleEngineRepo {
 	ctx := types.NewAppContext()
-	return &RuleEngineRepo{ctx: ctx, ruleApi: NewRuleApi(ctx)}
+	return &RuleEngineRepo{
+		ctx:      ctx,
+		ruleApi:  NewRuleApi(ctx),
+		Optimize: true, // Default to optimized mode
+	}
 }
 
 type CatEvaluatorKind int8

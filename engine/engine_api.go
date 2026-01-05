@@ -172,9 +172,10 @@ func NewRuleApi(ctx *types.AppContext) *RuleApi {
 }
 
 type RuleEngineRepo struct {
-	Rules   []*GeneralRuleRecord
-	ctx     *types.AppContext
-	ruleApi *RuleApi
+	Rules    []*GeneralRuleRecord
+	ctx      *types.AppContext
+	ruleApi  *RuleApi
+	Optimize bool // If true, apply category engine optimizations (default: true)
 }
 
 func (repo *RuleEngineRepo) Register(f *InternalRule) uint {
@@ -456,10 +457,22 @@ func NewRuleEngine(repo *RuleEngineRepo) (*RuleEngine, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set optimization thresholds based on Optimize flag
+	var orThreshold, andThreshold uint
+	if repo.Optimize {
+		// Optimized mode: use default values
+		orThreshold = 0  // OR optimization disabled by default
+		andThreshold = 1 // AND optimization enabled with threshold 1
+	} else {
+		// Non-optimized mode: disable all optimizations
+		orThreshold = 0
+		andThreshold = 0
+	}
+
 	catEngine := cateng.NewCategoryEngine(&compCondRepo.RuleRepo, &cateng.Options{
-		// TODO implement option passing
-		OrOptimizationFreqThreshold:  0,
-		AndOptimizationFreqThreshold: 1,
+		OrOptimizationFreqThreshold:  orThreshold,
+		AndOptimizationFreqThreshold: andThreshold,
 		Verbose:                      false,
 	})
 

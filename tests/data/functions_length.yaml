@@ -1,0 +1,232 @@
+- metadata:
+    id: length-empty-array
+    description: Test length() with empty array
+  expression: length("items") == 0
+  tests:
+    - name: empty array
+      event:
+        items: []
+      expect: true
+      description: Empty array should have length 0
+    - name: non-empty array
+      event:
+        items: [{value: 1}]
+      expect: false
+      description: Non-empty array should not have length 0
+
+- metadata:
+    id: length-count-elements
+    description: Test length() returns correct element count
+  expression: length("items") == 3
+  tests:
+    - name: exactly 3 elements
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}]
+      expect: true
+      description: Array with 3 elements should have length 3
+    - name: 2 elements
+      event:
+        items: [{a: 1}, {a: 2}]
+      expect: false
+      description: Array with 2 elements should not have length 3
+    - name: 4 elements
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}, {a: 4}]
+      expect: false
+      description: Array with 4 elements should not have length 3
+
+- metadata:
+    id: length-single-element
+    description: Test length() with single element array
+  expression: length("items") == 1
+  tests:
+    - name: single element
+      event:
+        items: [{value: 100}]
+      expect: true
+      description: Array with 1 element should have length 1
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array should not have length 1
+
+- metadata:
+    id: length-greater-than
+    description: Test length() with greater than operator
+  expression: length("items") > 2
+  tests:
+    - name: 3 elements (greater than 2)
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}]
+      expect: true
+      description: Array with 3 elements should be > 2
+    - name: 2 elements (not greater than 2)
+      event:
+        items: [{a: 1}, {a: 2}]
+      expect: false
+      description: Array with 2 elements should not be > 2
+    - name: 1 element
+      event:
+        items: [{a: 1}]
+      expect: false
+      description: Array with 1 element should not be > 2
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array should not be > 2
+
+- metadata:
+    id: length-missing-array-null
+    description: Test length() with missing or null array returns null
+  expression: length("items") > 0
+  tests:
+    - name: missing array
+      event:
+        other_field: value
+      expect: false
+      description: Missing array returns null, null > 0 is false
+    - name: explicit null array
+      event:
+        items: null
+      expect: false
+      description: Null array returns null, null > 0 is false
+    - name: non-empty array
+      event:
+        items: [{value: 1}]
+      expect: true
+      description: Non-empty array should have length > 0
+
+- metadata:
+    id: length-with-hasvalue
+    description: Combine length() with hasValue() for null-safe checks
+  expression: hasValue("items") && length("items") > 0
+  tests:
+    - name: missing array
+      event:
+        other_field: value
+      expect: false
+      description: Missing array fails hasValue check
+    - name: explicit null array
+      event:
+        items: null
+      expect: false
+      description: Null array fails hasValue check
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array passes hasValue but fails length > 0
+    - name: non-empty array
+      event:
+        items: [{value: 1}]
+      expect: true
+      description: Non-empty array passes both checks
+
+- metadata:
+    id: length-null-inequality
+    description: Test length() null != 0 semantics
+  expression: length("items") != 0
+  tests:
+    - name: missing array
+      event:
+        other_field: value
+      expect: true
+      description: Missing array returns null, null != 0 is true
+    - name: explicit null array
+      event:
+        items: null
+      expect: true
+      description: Null array returns null, null != 0 is true
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array returns 0, 0 != 0 is false
+    - name: non-empty array
+      event:
+        items: [{value: 1}]
+      expect: true
+      description: Non-empty array returns 1, 1 != 0 is true
+
+- metadata:
+    id: length-combined-conditions
+    description: Test length() combined with other conditions
+  expression: length("items") > 0 && forAll("items", "item", item.value > 10)
+  tests:
+    - name: non-empty array all elements satisfy
+      event:
+        items: [{value: 20}, {value: 30}]
+      expect: true
+      description: Array has elements and all values > 10
+    - name: non-empty array some elements fail
+      event:
+        items: [{value: 5}, {value: 30}]
+      expect: false
+      description: Array has elements but not all values > 10
+    - name: empty array
+      event:
+        items: []
+      expect: false
+      description: Empty array fails length > 0 check
+    - name: missing array
+      event:
+        other_field: value
+      expect: false
+      description: Missing array fails length > 0 check
+
+- metadata:
+    id: length-range-check
+    description: Test length() with range checks
+  expression: length("items") >= 2 && length("items") <= 5
+  tests:
+    - name: 3 elements (in range)
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}]
+      expect: true
+      description: Array with 3 elements is in range [2,5]
+    - name: 2 elements (boundary)
+      event:
+        items: [{a: 1}, {a: 2}]
+      expect: true
+      description: Array with 2 elements is in range [2,5]
+    - name: 5 elements (boundary)
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}, {a: 4}, {a: 5}]
+      expect: true
+      description: Array with 5 elements is in range [2,5]
+    - name: 1 element (below range)
+      event:
+        items: [{a: 1}]
+      expect: false
+      description: Array with 1 element is below range
+    - name: 6 elements (above range)
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}, {a: 4}, {a: 5}, {a: 6}]
+      expect: false
+      description: Array with 6 elements is above range
+
+- metadata:
+    id: length-arithmetic
+    description: Test length() with arithmetic operations
+  expression: length("items") + length("other_items") > 5
+  tests:
+    - name: combined length > 5
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}]
+        other_items: [{b: 1}, {b: 2}, {b: 3}]
+      expect: true
+      description: 3 + 3 = 6 which is > 5
+    - name: combined length = 5
+      event:
+        items: [{a: 1}, {a: 2}]
+        other_items: [{b: 1}, {b: 2}, {b: 3}]
+      expect: false
+      description: 2 + 3 = 5 which is not > 5
+    - name: one array missing
+      event:
+        items: [{a: 1}, {a: 2}, {a: 3}]
+        other_field: value
+      expect: false
+      description: 3 + null = null, null > 5 is false

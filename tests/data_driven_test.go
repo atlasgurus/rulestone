@@ -41,11 +41,11 @@ func runDataDrivenTestFile(t *testing.T, filePath string) {
 	repo := engine.NewRuleEngineRepo()
 
 	// Load rules with validation and testing enabled
-	result, err := repo.LoadRulesFromFile(filePath, engine.LoadOptions{
-		Validate:   true,
-		RunTests:   true,
-		FileFormat: "yaml",
-	})
+	result, err := repo.LoadRulesFromFile(filePath,
+		engine.WithValidate(true),
+		engine.WithRunTests(true),
+		engine.WithFileFormat("yaml"),
+	)
 
 	if err != nil {
 		t.Fatalf("Failed to load rules from %s: %v", filePath, err)

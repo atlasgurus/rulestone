@@ -415,7 +415,7 @@ func BenchmarkNullCheck(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: null-check}
   expression: field == null`
-	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)
 	}
@@ -441,7 +441,7 @@ func BenchmarkConstantExpression(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: constant-expr}
   expression: 1 == 1`
-	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)
 	}
@@ -467,7 +467,7 @@ func BenchmarkForAllEmptyArray(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: forall-empty}
   expression: forAll("items", "item", item.value > 100)`
-	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)
 	}
@@ -493,7 +493,7 @@ func BenchmarkForAllNonEmptyArray(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: forall-nonempty}
   expression: forAll("items", "item", item.value > 50)`
-	_, err := repo.LoadRulesFromString(rules, engine.LoadOptions{Validate: true})
+	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)
 	}

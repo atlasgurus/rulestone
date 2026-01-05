@@ -40,11 +40,11 @@ func TestAllRulesLoadedTogether(t *testing.T) {
 	totalRules := 0
 	totalTests := 0
 	for _, file := range files {
-		result, err := repo.LoadRulesFromFile(file, engine.LoadOptions{
-			Validate:   true,
-			RunTests:   true, // Load tests but we'll validate them manually
-			FileFormat: "yaml",
-		})
+		result, err := repo.LoadRulesFromFile(file,
+			engine.WithValidate(true),
+			engine.WithRunTests(true), // Load tests but we'll validate them manually
+			engine.WithFileFormat("yaml"),
+		)
 
 		if err != nil {
 			t.Errorf("Failed to load %s: %v", file, err)
@@ -161,11 +161,11 @@ func TestAllRulesConcurrentExecution(t *testing.T) {
 	var sampleEvents []interface{}
 
 	for _, file := range files {
-		result, err := repo.LoadRulesFromFile(file, engine.LoadOptions{
-			Validate:   true,
-			RunTests:   true,
-			FileFormat: "yaml",
-		})
+		result, err := repo.LoadRulesFromFile(file,
+			engine.WithValidate(true),
+			engine.WithRunTests(true),
+			engine.WithFileFormat("yaml"),
+		)
 
 		if err != nil {
 			continue
@@ -234,10 +234,10 @@ func TestCategoryEngineOptimizationMetrics(t *testing.T) {
 	totalRules := 0
 
 	for _, file := range files {
-		result, err := repo.LoadRulesFromFile(file, engine.LoadOptions{
-			Validate:   true,
-			FileFormat: "yaml",
-		})
+		result, err := repo.LoadRulesFromFile(file,
+			engine.WithValidate(true),
+			engine.WithFileFormat("yaml"),
+		)
 
 		if err == nil && result.ValidationOK {
 			totalRules += len(result.RuleIDs)

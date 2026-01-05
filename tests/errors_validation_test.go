@@ -85,11 +85,10 @@ func TestErrorValidation_InvalidRuleSyntax(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ruleFile := createErrorValidationTestRuleFile(t, tt.rules)
 			repo := engine.NewRuleEngineRepo()
-			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
-				Validate:   true,
-				RunTests:   false,
-				FileFormat: "",
-			})
+			result, err := repo.LoadRulesFromFile(ruleFile,
+				engine.WithValidate(true),
+				engine.WithRunTests(false),
+			)
 
 			if tt.shouldError {
 				// Check if either parsing failed (err != nil) or validation failed
@@ -192,11 +191,10 @@ func TestErrorValidation_InvalidExpressionSyntax(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
-				Validate:   true,
-				RunTests:   false,
-				FileFormat: "",
-			})
+			result, err := repo.LoadRulesFromFile(ruleFile,
+				engine.WithValidate(true),
+				engine.WithRunTests(false),
+			)
 
 			if tt.shouldError {
 				// Check if either parsing failed (err != nil) or validation failed
@@ -292,11 +290,10 @@ func TestErrorValidation_InvalidFunctionCalls(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
-				Validate:   true,
-				RunTests:   false,
-				FileFormat: "",
-			})
+			result, err := repo.LoadRulesFromFile(ruleFile,
+				engine.WithValidate(true),
+				engine.WithRunTests(false),
+			)
 
 			if tt.shouldError {
 				// Check if either parsing failed (err != nil) or validation failed
@@ -385,11 +382,10 @@ func TestErrorValidation_InvalidQuantifiers(t *testing.T) {
 
 			ruleFile := createErrorValidationTestRuleFile(t, rules)
 			repo := engine.NewRuleEngineRepo()
-			result, err := repo.LoadRulesFromFile(ruleFile, engine.LoadOptions{
-				Validate:   true,
-				RunTests:   false,
-				FileFormat: "",
-			})
+			result, err := repo.LoadRulesFromFile(ruleFile,
+				engine.WithValidate(true),
+				engine.WithRunTests(false),
+			)
 
 			if tt.shouldError {
 				// Check if either parsing failed (err != nil) or validation failed

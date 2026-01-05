@@ -128,6 +128,13 @@ type InternalRule struct {
 	Condition condition.Condition
 }
 
+// GetHash returns the cryptographic hash of the compiled rule condition.
+// The hash uniquely identifies the rule's semantic content and is computed
+// recursively from the entire condition tree structure.
+func (rule *InternalRule) GetHash() uint64 {
+	return rule.Condition.GetHash()
+}
+
 func externalToInternalRule(rule *ExternalRule) (*InternalRule, error) {
 	cond := condition.NewExprCondition(rule.Expression)
 	if cond.GetKind() == condition.ErrorCondKind {

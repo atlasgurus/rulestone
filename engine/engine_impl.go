@@ -1127,6 +1127,40 @@ func (repo *CompareCondRepo) funcForAll(n *ast.CallExpr, scope *ForEachScope) co
 		scope)
 }
 
+func (repo *CompareCondRepo) funcLength(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("wrong number of arguments for length() function"))
+	}
+
+	// Evaluate the path argument (should be a string like "items")
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() == condition.ErrorOperandKind {
+		return pathOperand
+	}
+
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("length() only supports string path"))
+	}
+
+	path := string(pathOperand.(condition.StringOperand))
+
+	// Get the array address for the path
+	arrayAddress, err := getAttributePathAddress(path+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				// Array missing/null - return null (per Option 1)
+				return condition.NewNullOperand(nil)
+			}
+			return condition.NewIntOperand(int64(numElements))
+		}, pathOperand) // pathOperand in Args for proper hash
+}
+
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
 	if scope.Evaluator != nil {
@@ -1350,6 +1384,8 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.funcForAll(n, scope)
 		case "forSome":
 			return repo.funcForSome(n, scope)
+		case "length":
+			return repo.funcLength(n, scope)
 		case "sqrt":
 			argOperand := repo.evalAstNode(n.Args[0], scope)
 			if argOperand.GetKind() == condition.ErrorOperandKind {

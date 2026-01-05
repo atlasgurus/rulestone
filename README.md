@@ -329,6 +329,24 @@ expression: forAll("items", "item", item.price > 0)
 expression: forSome("items", "item", item.status == "shipped")
 ```
 
+#### Array Functions
+
+```yaml
+# Get array length
+expression: length("items") > 0
+
+# Check array size range
+expression: length("items") >= 2 && length("items") <= 10
+
+# Combine with other conditions
+expression: length("items") > 0 && forAll("items", "item", item.validated == true)
+```
+
+**Note:** `length()` returns `null` for missing or null arrays, allowing proper null semantics:
+- `length("items") > 0` handles all cases correctly (missing→false, empty→false, non-empty→true)
+- `length("items") != 0` is true for both missing (null != 0) and non-empty arrays
+- Use `hasValue("items")` only if you need to distinguish missing/null from empty arrays
+
 ## Testing
 
 ### Built-in Tests

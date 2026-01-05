@@ -176,6 +176,34 @@ for _, ft := range result.GetFailedTests() {
 }
 ```
 
+### Rule Hashing
+
+Each compiled rule has a unique cryptographic hash computed from its condition tree:
+
+```go
+repo := engine.NewRuleEngineRepo()
+result, _ := repo.LoadRulesFromString(`
+- expression: a == 1 && b == 2
+`, engine.LoadOptions{Validate: true})
+
+// Get the rule hash
+ruleID := result.RuleIDs[0]
+hash := repo.Rules[ruleID].GetHash()
+fmt.Printf("Rule hash: %x\n", hash)
+```
+
+**Properties:**
+- **Cryptographic hash**: Uses recursive hash computation for security
+- **Semantic equality**: Identical expressions produce identical hashes
+- **Deterministic**: Same rule always produces the same hash
+- **Unique**: Different rules produce different hashes (collision-resistant)
+
+**Use cases:**
+- Detect duplicate rules across rule sets
+- Cache compiled rules by hash
+- Track rule versions and changes
+- Validate rule integrity
+
 ### Loading Rules
 
 ```go

@@ -29,6 +29,11 @@ type GeneralRuleRecord struct {
 	id         uint
 }
 
+// GetHash returns the cryptographic hash of the rule's compiled condition.
+func (r *GeneralRuleRecord) GetHash() uint64 {
+	return r.definition.GetHash()
+}
+
 // MapScalar Implement MapperConfig interface
 func (repo *RuleEngineRepo) MapScalar(v interface{}) interface{} {
 	return condition.NewInterfaceOperand(v, repo.ctx)

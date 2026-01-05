@@ -342,10 +342,10 @@ expression: length("items") >= 2 && length("items") <= 10
 expression: length("items") > 0 && forAll("items", "item", item.validated == true)
 ```
 
-**Note:** `length()` returns `null` for missing or null arrays. This allows proper null semantics:
-- `length("missing") > 0` → `false` (null > 0 is false)
-- `length("missing") != 0` → `true` (null != 0 is true)
-- For null-safe checks, combine with `hasValue()`: `hasValue("items") && length("items") > 0`
+**Note:** `length()` returns `null` for missing or null arrays, allowing proper null semantics:
+- `length("items") > 0` handles all cases correctly (missing→false, empty→false, non-empty→true)
+- `length("items") != 0` is true for both missing (null != 0) and non-empty arrays
+- Use `hasValue("items")` only if you need to distinguish missing/null from empty arrays
 
 ## Testing
 

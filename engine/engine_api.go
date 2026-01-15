@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/atlasgurus/rulestone/cateng"
 	"github.com/atlasgurus/rulestone/condition"
@@ -586,8 +587,29 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 			if r != 0 {
 				eventCategories = append(eventCategories, types.Category(r))
 			}
+		case condition.FloatOperand:
+			// Treat non-zero floats as truthy for category matching
+			if r != 0.0 {
+				cat := catEvaluator.GetCategory()
+				eventCategories = append(eventCategories, cat)
+			}
+		case condition.StringOperand:
+			// Treat non-empty strings as truthy for category matching
+			if len(r) > 0 {
+				cat := catEvaluator.GetCategory()
+				eventCategories = append(eventCategories, cat)
+			}
+		case condition.TimeOperand:
+			// Treat non-zero times as truthy for category matching
+			if !time.Time(r).IsZero() {
+				cat := catEvaluator.GetCategory()
+				eventCategories = append(eventCategories, cat)
+			}
+		case condition.NullOperand:
+			// Null operands are falsy - don't add category
+			// (do nothing)
 		default:
-			panic("should not get here")
+			panic(fmt.Sprintf("Unexpected operand type in category evaluation: %T", result))
 		}
 	})
 	f.compCondRepo.ObjectAttributeMapper.FreeObject(event)

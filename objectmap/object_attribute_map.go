@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type AttrDictionaryRec struct {
@@ -413,6 +414,20 @@ func (mapper *ObjectAttributeMapper) FreeObject(obj *ObjectAttributeMap) {
 
 func (mapper *ObjectAttributeMapper) buildObjectMap(
 	path string, v interface{}, values []interface{}, dictRec *AttrDictionaryRec, attrCallback func([]int), address []int) {
+	// Special case for time.Time and *time.Time before checking reflect.Kind
+	// time.Time is a struct, so it would fall through to default case otherwise
+	switch v.(type) {
+	case time.Time, *time.Time:
+		attrDictRec, ok := dictRec.dict[path]
+		if ok && attrDictRec.mapIndex != -1 {
+			// Create new slice with its own backing array to avoid race conditions
+			newAddress := append(address[:len(address):len(address)], attrDictRec.mapIndex)
+			values[attrDictRec.mapIndex] = mapper.Config.MapScalar(v)
+			attrCallback(newAddress)
+		}
+		return
+	}
+
 	kind := reflect.ValueOf(v).Kind()
 	switch kind {
 	case reflect.Map:

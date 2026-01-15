@@ -310,7 +310,7 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 		categoryList, _ := categoryMap.Get(constOperand)
 		categoryMap.Put(constOperand, append(categoryList, category))
 
-		// Also add type-converted versions for numeric/string interoperability
+		// Also add type-converted versions for numeric/string/time interoperability
 		constKind := constOperand.GetKind()
 		if constKind == condition.StringOperandKind {
 			// Try adding int and float versions of string constants
@@ -324,11 +324,30 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 				floatList, _ := categoryMap.Get(floatVersion)
 				categoryMap.Put(floatVersion, append(floatList, category))
 			}
+			// Try adding time version of string constants
+			timeVersion := constOperand.Convert(condition.TimeOperandKind)
+			if timeVersion.GetKind() != condition.ErrorOperandKind {
+				timeList, _ := categoryMap.Get(timeVersion)
+				categoryMap.Put(timeVersion, append(timeList, category))
+			}
 		} else if constKind == condition.IntOperandKind || constKind == condition.FloatOperandKind {
 			// Try adding string version of numeric constants
 			stringVersion := constOperand.Convert(condition.StringOperandKind)
 			stringList, _ := categoryMap.Get(stringVersion)
 			categoryMap.Put(stringVersion, append(stringList, category))
+			// Note: We don't convert numbers to time here because any number can be
+			// interpreted as a Unix timestamp, leading to false positive matches
+		} else if constKind == condition.TimeOperandKind {
+			// Try adding string version of time constants
+			stringVersion := constOperand.Convert(condition.StringOperandKind)
+			stringList, _ := categoryMap.Get(stringVersion)
+			categoryMap.Put(stringVersion, append(stringList, category))
+			// Try adding int version of time constants (for Unix nano timestamps)
+			intVersion := constOperand.Convert(condition.IntOperandKind)
+			if intVersion.GetKind() != condition.ErrorOperandKind {
+				intList, _ := categoryMap.Get(intVersion)
+				categoryMap.Put(intVersion, append(intList, category))
+			}
 		}
 		// Note: Boolean types are intentionally excluded
 	}
@@ -352,7 +371,7 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 				return condition.NewListOperand(catList)
 			}
 
-			// Try type conversions for numeric/string comparisons (but NOT boolean)
+			// Try type conversions for numeric/string/time comparisons (but NOT boolean)
 			if xKind == condition.StringOperandKind {
 				// Try converting string to int
 				intX := X.Convert(condition.IntOperandKind)
@@ -368,11 +387,33 @@ func (repo *CompareCondRepo) processEvalForIsInConstantList(
 						return condition.NewListOperand(catList)
 					}
 				}
+				// Try converting string to time
+				timeX := X.Convert(condition.TimeOperandKind)
+				if timeX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(timeX); k {
+						return condition.NewListOperand(catList)
+					}
+				}
 			} else if xKind == condition.IntOperandKind || xKind == condition.FloatOperandKind {
 				// Try converting number to string (but NOT to/from boolean)
 				stringX := X.Convert(condition.StringOperandKind)
 				if catList, k := categoryMap.Get(stringX); k {
 					return condition.NewListOperand(catList)
+				}
+				// Note: We don't try converting numbers to time here because any number
+				// can be interpreted as a Unix timestamp, leading to false positive matches
+			} else if xKind == condition.TimeOperandKind {
+				// Try converting time to string
+				stringX := X.Convert(condition.StringOperandKind)
+				if catList, k := categoryMap.Get(stringX); k {
+					return condition.NewListOperand(catList)
+				}
+				// Try converting time to int (Unix nano timestamp)
+				intX := X.Convert(condition.IntOperandKind)
+				if intX.GetKind() != condition.ErrorOperandKind {
+					if catList, k := categoryMap.Get(intX); k {
+						return condition.NewListOperand(catList)
+					}
 				}
 			}
 			// Note: Boolean types are intentionally excluded from cross-type conversions
@@ -1381,6 +1422,15 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.convertToType(n, scope, condition.IntOperandKind)
 		case "float":
 			return repo.convertToType(n, scope, condition.FloatOperandKind)
+		case "now":
+			if len(n.Args) != 0 {
+				return condition.NewErrorOperand(fmt.Errorf("now() function takes no arguments"))
+			}
+			// Return a function that evaluates to current time at runtime
+			return repo.CondFactory.NewExprOperand(
+				func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+					return condition.NewTimeOperand(time.Now())
+				}, condition.StringOperand(funcName)) // funcName as hash seed
 		case "regexpMatch":
 			return funcRegexpMatch(repo, n, scope)
 		case "hasValue":

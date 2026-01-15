@@ -952,6 +952,13 @@ func NewInterfaceOperand(v interface{}, ctx *types.AppContext) Operand {
 		return NewFloatOperand(n)
 	case bool:
 		return NewBooleanOperand(n)
+	case time.Time:
+		return NewTimeOperand(n)
+	case *time.Time:
+		if n == nil {
+			return NewNullOperand(nil)
+		}
+		return NewTimeOperand(*n)
 	case map[string]interface{}:
 		return NewErrorOperand(ctx.Errorf("scalar operand expected got map: %v", v))
 	case []interface{}:

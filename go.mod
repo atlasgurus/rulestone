@@ -1,6 +1,6 @@
 module github.com/atlasgurus/rulestone
 
-go 1.18
+go 1.22
 
 require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
@@ -13,7 +13,9 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

@@ -1119,19 +1119,11 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 		case "forSome":
 			return negateIfTrue(repo.processForSomeFunc(n, scope), negate)
 		default:
-			// For other functions (like ifFunc, math functions, etc.) that return operands,
-			// evaluate them as operands and convert to conditions by comparing to true
-			operand := repo.evalAstNode(n, scope)
-			if operand.GetKind() == condition.ErrorOperandKind {
-				return condition.NewErrorCondition(operand.(condition.ErrorOperand))
-			}
-			// Convert operand to boolean condition
-			cond := repo.processCompareCondition(
-				condition.NewCompareCond(condition.CompareEqualOp, operand, condition.NewBooleanOperand(true)), scope)
-			if negate {
-				return repo.CondFactory.NewNotCond(cond)
-			}
-			return cond
+			// Functions that return operands (if, abs, min, max, etc.) cannot be used
+			// as standalone boolean conditions. They must be used in comparisons or arithmetic.
+			// For example: "if(premium, 100, 50) > threshold" is valid
+			// But: "if(premium, 100, 50)" as a standalone expression is invalid
+			return condition.NewErrorCondition(fmt.Errorf("function '%s' cannot be used as boolean condition - must be used in comparison or arithmetic expression", funcName))
 		}
 	case *ast.BinaryExpr:
 		if negate {

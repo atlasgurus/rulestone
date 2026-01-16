@@ -3,8 +3,11 @@
 ## Table of Contents
 1. [System Overview](#system-overview)
 2. [Core Components](#core-components)
+   - [AlwaysEvaluateCategories Pattern](#alwaysevaluatecategories-pattern)
+   - [Negative Categories & DefaultCatList Pattern](#negative-categories--defaultcatlist-pattern)
 3. [Category Engine](#category-engine)
 4. [Expression Evaluation Pipeline](#expression-evaluation-pipeline)
+   - [Null Handling Semantics](#7-null-handling-semantics)
 5. [Memory Management](#memory-management)
 6. [Performance Characteristics](#performance-characteristics)
 7. [Design Patterns](#design-patterns)
@@ -177,6 +180,144 @@ AlwaysEvaluateCategories.Each(func(catEvaluator *EvalCategoryRec) {
 ```
 
 **Critical Insight**: The evaluator still needs to determine the correct result internally. AlwaysEvaluateCategories only ensures it *runs* - the logic must handle missing data appropriately.
+
+### Negative Categories & DefaultCatList Pattern
+
+**Background**: Negated comparisons (`age != 18`) create a unique challenge - they should match when the field is **present and not equal**, but the current design makes them match when the field is **missing** as well.
+
+#### The Problem
+
+```yaml
+Rule: age != 18
+Event: { name: "john" }  # age field missing
+
+Current Behavior: Rule MATCHES ✓
+Desired Strict Behavior: Rule should NOT match (field missing = not applicable)
+```
+
+**Why this happens**:
+1. Normal categories require attributes to be present to fire
+2. Negated categories need special handling to work correctly
+3. The "absence of a category" needs to mean "negative category fires"
+
+#### Implementation Mechanism
+
+**File**: `cateng/builder.go`
+
+**Step 1: Negative Category Registration (Line 149-156)**
+```go
+func (fb *FilterBuilder) registerNegativeCat(cat types.Category) types.Category {
+    negCat, ok := fb.NegCats[cat]
+    if !ok {
+        negCat = cat + types.MaxCategory  // ← Negative category ID
+        fb.NegCats[cat] = negCat
+    }
+    return negCat
+}
+```
+
+**Step 2: NOT Processing (Line 276-285)**
+```go
+func (fb *FilterBuilder) processNotOp(cond condition.Condition) CatFilter {
+    switch cond.GetKind() {
+    case condition.CategoryCondKind:
+        cat := cond.(*condition.CategoryCond).Cat
+        // Substitute NOT(Category) with NegativeCategory
+        negCat := fb.registerNegativeCat(cat)
+        return fb.computeCatFilter(condition.NewCategoryCond(negCat))
+```
+
+**Example**:
+```
+Expression: age != 18
+  ↓ Parsing converts to:
+NOT(CompareCondition(age == 18))
+  ↓ Category assignment:
+NOT(CategoryCond(123))   // Category 123 = "age == 18"
+  ↓ processNotOp converts to:
+CategoryCond(1000000123)  // Negative category = 123 + MaxCategory
+```
+
+**Step 3: DefaultCatList Construction (Line 636-639)**
+```go
+for cat := range fb.NegCats {  // ← For every category that has a negation
+    result.DefaultCategories[cat] = len(result.DefaultCategories)
+    result.DefaultCatList = append(result.DefaultCatList, cat)  // ← Add to DefaultCatList
+}
+```
+
+**Critical Insight**: Categories in `DefaultCatList` are "default true" - they're assumed to match **unless proven otherwise**. This is the mechanism that makes negative categories work.
+
+**Step 4: Runtime Evaluation (category_engine.go:83-95)**
+```go
+// Now process default categories
+for i, cat := range f.FilterTables.DefaultCatList {
+    if !defaultCatMap[i] {  // ← If category didn't match (field missing or false)
+        negCat, found := f.FilterTables.NegCats[cat]
+        csml := catToCatSetMask.Get(negCat)
+        if csml != nil {
+            applyCatSetMasks(csml, matchMaskArray, &result, f)  // ← Eval negative category!
+        }
+    }
+}
+```
+
+#### Complete Flow Example
+
+```
+Rule: age != 18
+Event: { name: "john" }  # age field missing
+
+Compilation:
+1. age != 18 → NOT(CategoryCond(cat_123))  // cat_123 = "age == 18"
+2. processNotOp → CategoryCond(neg_cat_123)  // neg_cat_123 = cat_123 + MaxCategory
+3. DefaultCatList.append(cat_123)  // Mark cat_123 as "default category"
+
+Runtime:
+1. MapObject: No "age" field → cat_123 not evaluated
+2. defaultCatMap[cat_123] = false  // Category didn't fire
+3. Process DefaultCatList:
+   - cat_123 didn't fire → evaluate neg_cat_123
+   - neg_cat_123 fires → Rule matches! ✓
+
+Result: age != 18 matches when age is missing
+```
+
+#### Design Rationale
+
+**Why not just add `age != 18` to AlwaysEvaluateCategories?**
+
+Because the semantics are different:
+- `AlwaysEvaluateCategories`: Always **evaluate** the expression (needed for null checks)
+- `DefaultCatList`: Assume **default value** when not evaluated (needed for negations)
+
+**Key Difference**:
+```
+age == null (AlwaysEvaluateCategories):
+  → Always run the comparison, return result
+  → age missing: evaluates to true ✓
+
+age != 18 (DefaultCatList):
+  → If age present: evaluate "age == 18", negate result
+  → If age missing: assume "age == 18" is false, negate to true ✓
+```
+
+#### Implications for Strict Mode
+
+**Current Permissive Behavior**: Negative comparisons match when fields are missing
+- `age != 18` → matches when age missing
+- `status != "active"` → matches when status missing
+- `count != 0` → matches when count missing
+
+**Desired Strict Behavior**: Fields must be present for any comparison
+- `age != 18` → no match when age missing
+- `status != "active"` → no match when status missing
+- `count != 0` → no match when count missing
+
+**Implementation Approach**: Disable `DefaultCatList` processing in strict mode
+- Skip lines 636-639 in builder.go (don't populate DefaultCatList)
+- Skip lines 83-95 in category_engine.go (don't process default categories)
+- Result: Negated categories only fire when field is present
 
 ## Category Engine
 
@@ -470,22 +611,165 @@ String vs Other:
 - string + int → error (no implicit conversion)
 - string + string → string comparison
 
-nil Handling:
-- nil == nil → true
-- nil != value → true (null is not equal to any non-null value)
-- nil > value → false (null is not orderable)
-- **Missing field is treated as null**
-
-**Design Insight: Three Distinct Concepts**:
-1. **Missing field**: Key doesn't exist in map → treated as `null`
-2. **Explicit null**: Key exists, value is `nil` → treated as `null`
-3. **Zero value**: Key exists, value is `0`, `""`, `false` → **not null**
-
-**Implications**:
-- `field == null` matches both missing fields and explicit null
-- `field == 0` only matches explicit zero, not missing/null
-- `field != null` checks for presence of non-null value
+Boolean:
+- bool is NOT converted to int/float (intentional isolation)
+- bool + numeric → no conversion, direct comparison
 ```
+
+### 7. Null Handling Semantics
+
+**Critical Design Decision**: Rulestone makes **NO distinction** between missing fields and explicit null values. Both are represented internally as `NullOperand` and behave identically.
+
+#### Why No Distinction?
+
+**Problem**: In JSON and Go maps, there are conceptually three states:
+1. Field doesn't exist in map (missing)
+2. Field exists with `nil` value (explicit null)
+3. Field exists with zero value (`0`, `""`, `false`)
+
+**Rulestone's Approach**: Treat (1) and (2) **identically as null**
+
+**Rationale**:
+- **JSON Semantics**: JSON doesn't distinguish between `{"field": null}` and `{}` in most use cases
+- **Rule Author Intent**: When writing `age != null`, authors typically mean "age has a value"
+- **Simplicity**: No need for separate "missing" vs "null" checks in most cases
+- **Performance**: Single code path for both cases
+
+#### Implementation Details
+
+**File**: `engine/engine_impl.go:1775-1801`
+
+```go
+func (repo *CompareCondRepo) evalOperandAccess(operand condition.Operand, ...) condition.Operand {
+    return repo.CondFactory.NewExprOperand(
+        func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+            val := objectmap.GetNestedAttributeByAddress(...)
+            if val == nil {
+                // ← Both missing and explicit null end up here
+                return condition.NewNullOperand(address)
+            }
+            return val.(condition.Operand)
+        }, operand)
+}
+```
+
+**Key Point**: `GetNestedAttributeByAddress()` returns `nil` for:
+- Missing fields (no key in map)
+- Explicit null values (key exists, value is `nil`)
+
+Both become `NullOperand` - **no distinction preserved**.
+
+#### Null Comparison Semantics
+
+**File**: `engine/engine_impl.go:226-238`
+
+```go
+if xKind == condition.NullOperandKind || yKind == condition.NullOperandKind {
+    bothNull := xKind == condition.NullOperandKind && yKind == condition.NullOperandKind
+    switch compOp {
+    case condition.CompareEqualOp:
+        return condition.NewBooleanOperand(bothNull)
+    case condition.CompareNotEqualOp:
+        return condition.NewBooleanOperand(!bothNull)
+    case condition.CompareGreaterOp, condition.CompareLessOp, etc:
+        return condition.NewBooleanOperand(false)  // null is not orderable
+    }
+}
+```
+
+**Null Comparison Rules** (SQL-like semantics):
+- `null == null` → `true`
+- `null == value` → `false` (null doesn't equal any non-null value)
+- `null != value` → `true` (null is different from any non-null value)
+- `null > value` → `false` (null is not orderable)
+- `null < value` → `false` (null is not orderable)
+- `null >= value` → `false` (null is not orderable)
+- `null <= value` → `false` (null is not orderable)
+
+#### Practical Examples
+
+**Test File**: `tests/data/types_null_handling.yaml`
+
+```yaml
+# Example 1: Equality
+expression: age == 0
+Event: {}                    → false (missing field = null, null != 0)
+Event: {age: null}           → false (explicit null, null != 0)
+Event: {age: 0}              → true  (zero value matches)
+
+# Example 2: Inequality
+expression: age != 18
+Event: {}                    → true  (missing field = null, null != 18) ← Strict mode issue!
+Event: {age: null}           → true  (explicit null, null != 18)
+Event: {age: 18}             → false (value matches, negation fails)
+Event: {age: 25}             → true  (value doesn't match, negation succeeds)
+
+# Example 3: Ordering
+expression: age > 18
+Event: {}                    → false (missing field = null, null is not orderable)
+Event: {age: null}           → false (explicit null, null is not orderable)
+Event: {age: 25}             → true  (25 > 18)
+
+# Example 4: Null Check
+expression: age == null
+Event: {}                    → true  (missing field = null)
+Event: {age: null}           → true  (explicit null)
+Event: {age: 0}              → false (zero value is not null)
+
+# Example 5: Not Null Check
+expression: age != null
+Event: {}                    → false (missing field = null, null != null is false)
+Event: {age: null}           → false (explicit null, null != null is false)
+Event: {age: 0}              → true  (zero value exists)
+```
+
+#### Functions and Null Handling
+
+**length() Function** (`engine/engine_impl.go`):
+```go
+// length() returns null for missing or null arrays
+expression: length("items") > 0
+
+Event: {}                    → false (missing array → null, null > 0 → false)
+Event: {items: null}         → false (explicit null → null, null > 0 → false)
+Event: {items: []}           → false (empty array → 0, 0 > 0 → false)
+Event: {items: [1, 2]}       → true  (array length = 2, 2 > 0 → true)
+```
+
+**hasValue() Function** - Only Way to Distinguish
+
+```go
+// hasValue() returns true if field exists and is not null
+expression: hasValue("field")
+
+Event: {}                    → false (field missing)
+Event: {field: null}         → false (field explicitly null)
+Event: {field: 0}            → true  (field has value, even if zero)
+Event: {field: ""}           → true  (field has value, even if empty string)
+```
+
+**Design Insight**: `hasValue()` is the **only** way to check if a field is present with a non-null value, but it **still** treats missing and explicit null identically (both return false).
+
+#### Why This Matters for Strict Mode
+
+**Current Permissive Behavior**:
+```
+age != 18  with missing age → matches (null != 18 → true)
+```
+
+**Problem**: Rule triggers when field doesn't exist, which is often unintended.
+
+**Strict Mode Goal**: Only match when field is **present**
+```
+age != 18  with missing age → no match (field not applicable)
+```
+
+**Implementation Challenge**: Can't just check `field == null` because:
+1. Null checks need special handling (AlwaysEvaluateCategories)
+2. Negative comparisons use DefaultCatList mechanism
+3. No distinction between missing and explicit null at runtime
+
+**Solution**: Disable DefaultCatList in strict mode, requiring all fields to be present for any comparison (including negations).
 
 ## Memory Management
 

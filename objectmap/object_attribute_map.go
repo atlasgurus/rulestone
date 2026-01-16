@@ -539,3 +539,44 @@ func (attrMap *ObjectAttributeMap) getValueFromOriginalEvent(path string) interf
 	}
 	return current
 }
+
+// FieldExistsInOriginalEvent checks if a field path exists in the original event
+// Returns true if the full path resolves (even to nil/null), false if any segment is missing
+func (attrMap *ObjectAttributeMap) FieldExistsInOriginalEvent(path string) bool {
+	// Strip "[]" suffix if present
+	cleanPath := strings.TrimSuffix(path, "[]")
+	if cleanPath == "" {
+		return true // Root always exists
+	}
+
+	// Navigate the path segments
+	current := attrMap.OriginalEvent
+	segments := strings.Split(cleanPath, ".")
+	for _, segment := range segments {
+		if current == nil {
+			// The parent was null, so we can't navigate further
+			// But if we're here, the parent existed (was explicitly null)
+			return false
+		}
+
+		// Check if the key exists in the map
+		switch v := current.(type) {
+		case map[string]interface{}:
+			val, exists := v[segment]
+			if !exists {
+				return false // Key doesn't exist
+			}
+			current = val
+		case map[interface{}]interface{}:
+			val, exists := v[segment]
+			if !exists {
+				return false // Key doesn't exist
+			}
+			current = val
+		default:
+			// Current is not a map, can't navigate further
+			return false
+		}
+	}
+	return true
+}

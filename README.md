@@ -344,12 +344,91 @@ atomic.StorePointer(&currentEngine, unsafe.Pointer(newEngine))
 - Numbers: `1`, `2.3`, `-5`
 - Booleans: `true`, `false`
 - Null: `null`
+- Undefined: `undefined`
 
 ### Field Access
 
 - Simple: `field1`
 - Nested: `user.name`, `order.items[0].price`
 - Arrays: `items[0]`, `items[1].value`
+
+### Null vs Undefined Semantics
+
+Rulestone distinguishes between **missing fields** and **explicit null values**:
+
+```yaml
+# Missing field (not in event)
+Event: { name: "john" }
+age → undefined
+
+# Explicit null (field exists with null value)
+Event: { name: "john", age: null }
+age → null
+
+# Zero/empty values are NOT null or undefined
+Event: { name: "john", age: 0 }
+age → 0
+```
+
+**Comparison behavior**:
+```yaml
+# Check if field is missing
+expression: age == undefined
+  Event: {}          → true (field missing)
+  Event: {age: null} → false (field exists, just null)
+  Event: {age: 0}    → false (field has value)
+
+# Check if field exists (even if null)
+expression: age != undefined
+  Event: {}          → false (field missing)
+  Event: {age: null} → true (field exists)
+  Event: {age: 0}    → true (field has value)
+
+# Check if field is explicitly null
+expression: age == null
+  Event: {}          → false (field missing, not null)
+  Event: {age: null} → true (explicit null)
+  Event: {age: 0}    → false (has value)
+
+# Check if field has a non-null value
+expression: age != null
+  Event: {}          → false (field missing)
+  Event: {age: null} → false (explicit null)
+  Event: {age: 0}    → true (has value)
+```
+
+**Negations with missing fields**:
+```yaml
+# Does NOT match when field is missing
+expression: age != 18
+  Event: {}          → false (field missing → undefined != 18 → undefined)
+  Event: {age: null} → true (null != 18)
+  Event: {age: 25}   → true (25 != 18)
+  Event: {age: 18}   → false (18 != 18)
+
+# To match when missing OR not equal (rare):
+expression: age == undefined || age != 18
+```
+
+**Key principle**: Missing fields cause comparisons to return `undefined`, which is treated as "not applicable" - the rule doesn't match.
+
+**Common patterns**:
+```yaml
+# Require field to exist and meet condition
+expression: age != undefined && age > 18
+
+# Optional field - default behavior if missing
+expression: premium == undefined || premium == true
+
+# Check field is neither missing nor null
+expression: age != undefined && age != null && age > 18
+
+# Distinguish three states
+expression: |
+  status == undefined     # Field not provided
+  status == null          # Field explicitly cleared
+  status == "active"      # Field has value
+```
 
 ### Functions
 
@@ -399,10 +478,11 @@ expression: length("items") >= 2 && length("items") <= 10
 expression: length("items") > 0 && forAll("items", "item", item.validated == true)
 ```
 
-**Note:** `length()` returns `null` for missing or null arrays, allowing proper null semantics:
-- `length("items") > 0` handles all cases correctly (missing→false, empty→false, non-empty→true)
-- `length("items") != 0` is true for both missing (null != 0) and non-empty arrays
-- Use `hasValue("items")` only if you need to distinguish missing/null from empty arrays
+**Note:** `length()` returns `undefined` for missing arrays and `null` for explicit null, allowing proper semantics:
+- `length("items") > 0` handles all cases correctly (missing→false, null→false, empty→false, non-empty→true)
+- `length("items") != 0` with missing array → false (undefined != 0 → undefined)
+- To match missing OR non-empty: `items == undefined || length("items") > 0`
+- Use `hasValue("items")` to check if array exists with a value
 
 ## Testing
 

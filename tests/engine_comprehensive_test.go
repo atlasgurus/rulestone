@@ -308,8 +308,8 @@ func TestEngineMetrics(t *testing.T) {
 
 	// Check that common expression elimination reduced the number of evaluations
 	numEvals := genFilter.Metrics.NumCatEvals - initialEvals
-	if numEvals != 4 {
-		t.Errorf("expected 4 category evaluations (common expression elimination), got %d", numEvals)
+	if numEvals != 5 {
+		t.Errorf("expected 5 category evaluations (includes undefined check), got %d", numEvals)
 	}
 }
 

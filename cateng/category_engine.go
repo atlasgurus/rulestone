@@ -65,27 +65,30 @@ func (f *CategoryEngine) MatchEvent(cats []types.Category) []condition.RuleIdTyp
 	matchMaskArray := make([]types.Mask, len(f.FilterTables.NegCats)+len(f.FilterTables.CatSetFilters))
 	result := make([]condition.RuleIdType, 0, 100)
 
-	defaultCatMap := make([]bool, len(f.FilterTables.DefaultCategories))
+	// Track which default categories fired (returned true)
+	firedDefaultCats := types.NewHashSet[types.Category]()
 
 	catToCatSetMask := f.FilterTables.CatToCatSetMask
 	for _, cat := range cats {
-		if i, ok := f.FilterTables.DefaultCategories[cat]; ok {
-			// The condition evaluated to false for the category with the default value of true.
-			// Take note of that to avoid including this category in the list later in this function.
-			defaultCatMap[i] = true
+		// Track if this is a default category that fired
+		if _, ok := f.FilterTables.DefaultCategories[cat]; ok {
+			firedDefaultCats.Put(cat)
 		}
+
 		csml := catToCatSetMask.Get(cat)
 		if csml != nil {
 			applyCatSetMasks(csml, matchMaskArray, &result, f)
 		}
 	}
 
-	// Now process default categories
-	for i, cat := range f.FilterTables.DefaultCatList {
-		if !defaultCatMap[i] {
+	// Process default categories
+	// Fire negative category if the category didn't fire (returned false or undefined)
+	for _, cat := range f.FilterTables.DefaultCatList {
+		if !firedDefaultCats.Has(cat) {
+			// Category didn't fire → fire negative
 			negCat, found := f.FilterTables.NegCats[cat]
 			if !found {
-				panic("negCat must exist for this")
+				panic("negCat must exist for default category")
 			}
 			csml := catToCatSetMask.Get(negCat)
 			if csml != nil {

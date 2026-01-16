@@ -244,6 +244,7 @@ const (
 	NullOperandKind                   = 11
 	ListOperandKind                   = 12
 	ErrorOperandKind                  = 13
+	UndefinedOperandKind              = 14
 )
 
 type EvalOperandFunc func(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand
@@ -893,6 +894,58 @@ func (v NullOperand) Greater(o Operand) bool {
 }
 
 func (v NullOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
+	return v
+}
+
+// UndefinedOperand represents a missing field (distinct from explicit null)
+type UndefinedOperand struct {
+	Source interface{} // For debugging - stores the field path or other context
+}
+
+func NewUndefinedOperand(source interface{}) Operand {
+	return UndefinedOperand{Source: source}
+}
+
+func (v UndefinedOperand) Convert(to OperandKind) Operand {
+	// undefined propagates through most conversions
+	// Exception: conversion to boolean could be false, but we preserve undefined semantics
+	switch to {
+	case UndefinedOperandKind:
+		return v
+	case NullOperandKind:
+		// undefined cannot convert to null (different types)
+		return NewErrorOperand(fmt.Errorf("invalid conversion of undefined operand to null"))
+	default:
+		// For other types, propagate undefined
+		return v
+	}
+}
+
+func (v UndefinedOperand) IsConst() bool {
+	return true
+}
+
+func (v UndefinedOperand) GetKind() OperandKind {
+	return UndefinedOperandKind
+}
+
+func (v UndefinedOperand) GetHash() uint64 {
+	// Use a unique hash different from null (0)
+	return 1
+}
+
+func (v UndefinedOperand) Equals(o immutable.SetElement) bool {
+	// undefined == undefined → true (for set operations)
+	return o.(Operand).GetKind() == UndefinedOperandKind
+}
+
+func (v UndefinedOperand) Greater(o Operand) bool {
+	// undefined is not orderable - this should not be called
+	// If it is, we could panic or return false
+	panic("undefined operand is not orderable")
+}
+
+func (v UndefinedOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
 	return v
 }
 

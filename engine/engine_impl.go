@@ -61,9 +61,11 @@ type CatEvaluator interface {
 }
 
 type EvalCategoryRec struct {
-	Cat      types.Category
-	Eval     condition.Operand
-	AttrKeys []string
+	Cat                      types.Category
+	Eval                     condition.Operand
+	AttrKeys                 []string
+	IsUndefinedEqualityCheck bool   // true if this category checks "field == undefined"
+	FieldPath                string // field path for undefined checks (e.g., "age", "user.name")
 }
 
 func (v *EvalCategoryRec) GetHash() uint64 {
@@ -95,6 +97,8 @@ type CompareCondRepo struct {
 	// Categories that must be evaluated even if their attributes aren't in the event
 	// (e.g., null checks like "field == null", constant expressions like "1 == 1")
 	AlwaysEvaluateCategories     *hashset.Set[*EvalCategoryRec]
+	// Set of categories that check "field == undefined" (for efficient DefaultCatList)
+	UndefinedEqualityCategories  *hashset.Set[types.Category]
 	RuleRepo                     condition.RuleRepo
 	ObjectAttributeMapper        *objectmap.ObjectAttributeMapper
 	CondFactory                  *condition.Factory
@@ -187,6 +191,7 @@ func (repo *CompareCondRepo) genEvalForLogicalOp(
 			if X.GetKind() == condition.ErrorOperandKind {
 				return X
 			}
+
 			Y := yEval.Evaluate(event, frames).Convert(condition.BooleanOperandKind)
 			if Y.GetKind() == condition.ErrorOperandKind {
 				return Y
@@ -194,8 +199,36 @@ func (repo *CompareCondRepo) genEvalForLogicalOp(
 
 			switch op {
 			case token.LAND:
+				// AND logic with three-valued semantics:
+				// false && anything → false (short circuit)
+				// true && undefined → undefined
+				// undefined && false → false
+				// undefined && true → undefined
+				if X.GetKind() == condition.BooleanOperandKind && !bool(X.(condition.BooleanOperand)) {
+					return condition.NewBooleanOperand(false)
+				}
+				if Y.GetKind() == condition.BooleanOperandKind && !bool(Y.(condition.BooleanOperand)) {
+					return condition.NewBooleanOperand(false)
+				}
+				if X.GetKind() == condition.UndefinedOperandKind || Y.GetKind() == condition.UndefinedOperandKind {
+					return condition.NewUndefinedOperand(nil)
+				}
 				return condition.NewBooleanOperand(bool(X.(condition.BooleanOperand)) && bool(Y.(condition.BooleanOperand)))
 			case token.LOR:
+				// OR logic with three-valued semantics:
+				// true || anything → true (short circuit)
+				// false || undefined → undefined
+				// undefined || true → true
+				// undefined || false → undefined
+				if X.GetKind() == condition.BooleanOperandKind && bool(X.(condition.BooleanOperand)) {
+					return condition.NewBooleanOperand(true)
+				}
+				if Y.GetKind() == condition.BooleanOperandKind && bool(Y.(condition.BooleanOperand)) {
+					return condition.NewBooleanOperand(true)
+				}
+				if X.GetKind() == condition.UndefinedOperandKind || Y.GetKind() == condition.UndefinedOperandKind {
+					return condition.NewUndefinedOperand(nil)
+				}
 				return condition.NewBooleanOperand(bool(X.(condition.BooleanOperand)) || bool(Y.(condition.BooleanOperand)))
 			default:
 				panic("should not get here")
@@ -214,6 +247,10 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 			xKind := X.GetKind()
 			Y := yEval.Evaluate(event, frames)
 			yKind := Y.GetKind()
+			// Temporary debug for null inequality issue
+			// if compOp == condition.CompareNotEqualOp {
+			// 	fmt.Printf("DEBUG != Compare START: X=%v (kind=%v), Y=%v (kind=%v)\n", X, xKind, Y, yKind)
+			// }
 			if xKind == condition.ErrorOperandKind {
 				return X
 			}
@@ -221,8 +258,39 @@ func (repo *CompareCondRepo) genEvalForCompareOperands(
 				return Y
 			}
 
+			// Special handling for undefined comparisons (THREE-VALUED LOGIC)
+			// Check undefined BEFORE null handling
+			if xKind == condition.UndefinedOperandKind && yKind == condition.UndefinedOperandKind {
+				// Both undefined: undefined == undefined → true, undefined != undefined → false
+				switch compOp {
+				case condition.CompareEqualOp:
+					return condition.NewBooleanOperand(true)
+				case condition.CompareNotEqualOp:
+					return condition.NewBooleanOperand(false)
+				default:
+					// Ordering operations with undefined → undefined
+					return condition.NewUndefinedOperand(nil)
+				}
+			}
+
+			if xKind == condition.UndefinedOperandKind || yKind == condition.UndefinedOperandKind {
+				// One operand is undefined - all comparisons return undefined (three-valued logic)
+				// This is the breaking change: undefined != value returns undefined (not true)
+				// When cast to boolean, undefined becomes false
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// DEBUG
+			if false {  // Disabled debug
+				fmt.Printf("[DEBUG] Comparison: X=%v (kind=%v), Y=%v (kind=%v), op=%v\n",
+					X, xKind, Y, yKind, compOp)
+			}
+
 			// Special handling for null comparisons
-			// Null should not equal any non-null value
+			// Null is a VALUE (different from undefined which means "no value")
+			// null == value → false (unless both null)
+			// null != value → true (unless both null)
+			// null > value → false (null is not orderable)
 			if xKind == condition.NullOperandKind || yKind == condition.NullOperandKind {
 				bothNull := xKind == condition.NullOperandKind && yKind == condition.NullOperandKind
 				switch compOp {
@@ -588,9 +656,16 @@ func (repo *CompareCondRepo) processCompareCondition(
 		}
 
 		var eval condition.Operand
+		// Check if this is an undefined equality check first (before const optimization)
+		isUndefinedEqualityCheck := compareCond.CompareOp == condition.CompareEqualOp &&
+			(compareCond.LeftOperand.GetKind() == condition.UndefinedOperandKind ||
+				compareCond.RightOperand.GetKind() == condition.UndefinedOperandKind)
+
 		// Special case equal compare against a constant that can be done via a hash lookup
+		// BUT: Skip hash lookup optimization for undefined checks (they need special DefaultCatList handling)
 		if compareCond.CompareOp == condition.CompareEqualOp &&
-			(compareCond.LeftOperand.IsConst() || compareCond.RightOperand.IsConst()) {
+			(compareCond.LeftOperand.IsConst() || compareCond.RightOperand.IsConst()) &&
+			!isUndefinedEqualityCheck {
 			eval = repo.processCompareEqualToConstCondition(compareCond, scope)
 		} else {
 			eval = repo.genEvalForCompareCondition(compareCond, scope)
@@ -602,16 +677,37 @@ func (repo *CompareCondRepo) processCompareCondition(
 
 		repo.CondToCompareCondRecord.Put(compareCond, evalCatRec)
 
+		// Detect and mark undefined-equality checks (field == undefined)
+		// These will be added to DefaultCatList for efficient processing
+		if eval != nil && compareCond.CompareOp == condition.CompareEqualOp {
+			isUndefinedCheck := compareCond.LeftOperand.GetKind() == condition.UndefinedOperandKind ||
+				compareCond.RightOperand.GetKind() == condition.UndefinedOperandKind
+			if isUndefinedCheck {
+				evalCatRec.IsUndefinedEqualityCheck = true
+				// Extract field path from the non-undefined operand
+				if compareCond.LeftOperand.GetKind() == condition.UndefinedOperandKind && len(evalCatRec.AttrKeys) > 0 {
+					evalCatRec.FieldPath = evalCatRec.AttrKeys[0]
+				} else if compareCond.RightOperand.GetKind() == condition.UndefinedOperandKind && len(evalCatRec.AttrKeys) > 0 {
+					evalCatRec.FieldPath = evalCatRec.AttrKeys[0]
+				}
+				// Add to UndefinedEqualityCategories set for DefaultCatList building
+				repo.UndefinedEqualityCategories.Put(evalCatRec.GetCategory())
+			}
+		}
+
 		// Register categories that must always be evaluated:
-		// 1. Null checks: comparisons where one operand is null (field == null, field != null)
-		// 2. Constant expressions: comparisons with no event dependencies (1 == 1, true)
+		// 1. Undefined checks: comparisons where one operand is undefined (field == undefined)
+		// 2. Null checks: comparisons where one operand is null (field == null, field != null)
+		// 3. Constant expressions: comparisons with no event dependencies (1 == 1, true)
 		// Note: Only register if eval is not nil (processCompareEqualToConstCondition can return nil for duplicates)
 		if eval != nil {
+			isUndefinedCheck := compareCond.LeftOperand.GetKind() == condition.UndefinedOperandKind ||
+				compareCond.RightOperand.GetKind() == condition.UndefinedOperandKind
 			isNullCheck := compareCond.LeftOperand.GetKind() == condition.NullOperandKind ||
 				compareCond.RightOperand.GetKind() == condition.NullOperandKind
 			hasNoEventDependencies := len(evalCatRec.AttrKeys) == 0
 
-			if isNullCheck || hasNoEventDependencies {
+			if isUndefinedCheck || isNullCheck || hasNoEventDependencies {
 				repo.AlwaysEvaluateCategories.Put(evalCatRec)
 			}
 		}
@@ -658,15 +754,26 @@ func (repo *CompareCondRepo) genEvalForAndCondition(
 
 	return repo.CondFactory.NewExprOperand(
 		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			hasUndefined := false
 			for _, eval := range condEvaluators {
 				result := eval.Func(event, frames)
 				if result.GetKind() == condition.ErrorOperandKind {
 					return result
-				} else if !result.(condition.BooleanOperand) {
+				}
+				// false short-circuits (undefined && false → false)
+				if result.GetKind() == condition.BooleanOperandKind && !result.(condition.BooleanOperand) {
 					return condition.NewBooleanOperand(false)
 				}
+				// Track undefined (doesn't short-circuit)
+				if result.GetKind() == condition.UndefinedOperandKind {
+					hasUndefined = true
+				}
 			}
-			// Return true unless at least one is false
+			// If any was undefined and none were false → undefined
+			if hasUndefined {
+				return condition.NewUndefinedOperand(nil)
+			}
+			// All were true
 			return condition.NewBooleanOperand(true)
 		}, types.MapSlice(condEvaluators, func(o *condition.ExprOperand) condition.Operand { return o })...)
 }
@@ -684,15 +791,26 @@ func (repo *CompareCondRepo) genEvalForOrCondition(
 
 	return repo.CondFactory.NewExprOperand(
 		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			hasUndefined := false
 			for _, eval := range condEvaluators {
 				result := eval.Func(event, frames)
 				if result.GetKind() == condition.ErrorOperandKind {
 					return result
-				} else if result.(condition.BooleanOperand) {
+				}
+				// true short-circuits (undefined || true → true)
+				if result.GetKind() == condition.BooleanOperandKind && result.(condition.BooleanOperand) {
 					return condition.NewBooleanOperand(true)
 				}
+				// Track undefined (doesn't short-circuit)
+				if result.GetKind() == condition.UndefinedOperandKind {
+					hasUndefined = true
+				}
 			}
-			// Return true unless at least one is false
+			// If any was undefined and none were true → undefined
+			if hasUndefined {
+				return condition.NewUndefinedOperand(nil)
+			}
+			// All were false
 			return condition.NewBooleanOperand(false)
 		}, types.MapSlice(condEvaluators, func(o *condition.ExprOperand) condition.Operand { return o })...)
 }
@@ -709,9 +827,20 @@ func (repo *CompareCondRepo) genEvalForNotCondition(
 			result := eval.Evaluate(event, frames)
 			if result.GetKind() == condition.ErrorOperandKind {
 				return result
-			} else {
-				return condition.NewBooleanOperand(!bool(result.(condition.BooleanOperand)))
 			}
+			// !(undefined) → undefined (three-valued logic)
+			if result.GetKind() == condition.UndefinedOperandKind {
+				return result
+			}
+			// !(null) → true (null is falsey)
+			if result.GetKind() == condition.NullOperandKind {
+				return condition.NewBooleanOperand(true)
+			}
+			// Must be BooleanOperand at this point
+			if result.GetKind() != condition.BooleanOperandKind {
+				return condition.NewErrorOperand(fmt.Errorf("NOT operator expects boolean, got %v", result.GetKind()))
+			}
+			return condition.NewBooleanOperand(!bool(result.(condition.BooleanOperand)))
 		}, eval)
 }
 
@@ -817,7 +946,18 @@ func (repo *CompareCondRepo) genEvalForAllCondition(
 					result = eval.Evaluate(event, frames)
 					if result.GetKind() == condition.ErrorOperandKind {
 						break
-					} else if !result.(condition.BooleanOperand) {
+					}
+					// Handle undefined: propagate it (forAll with undefined element → undefined)
+					if result.GetKind() == condition.UndefinedOperandKind {
+						break
+					}
+					// Handle null as falsey
+					if result.GetKind() == condition.NullOperandKind {
+						result = condition.NewBooleanOperand(false)
+						break
+					}
+					// Handle false boolean
+					if result.GetKind() == condition.BooleanOperandKind && !result.(condition.BooleanOperand) {
 						break
 					}
 				}
@@ -892,7 +1032,17 @@ func (repo *CompareCondRepo) genEvalForSomeCondition(
 					result = eval.Evaluate(event, frames)
 					if result.GetKind() == condition.ErrorOperandKind {
 						break
-					} else if result.(condition.BooleanOperand) {
+					}
+					// Handle undefined: propagate it (forSome with undefined element → keep searching)
+					if result.GetKind() == condition.UndefinedOperandKind {
+						continue
+					}
+					// Handle null as falsey (continue searching)
+					if result.GetKind() == condition.NullOperandKind {
+						continue
+					}
+					// Handle true boolean (found a match!)
+					if result.GetKind() == condition.BooleanOperandKind && result.(condition.BooleanOperand) {
 						break
 					}
 				}
@@ -1204,8 +1354,9 @@ func (repo *CompareCondRepo) funcLength(n *ast.CallExpr, scope *ForEachScope) co
 		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
 			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
 			if err != nil {
-				// Array missing/null - return null (per Option 1)
-				return condition.NewNullOperand(nil)
+				// Array missing - return undefined (distinct from explicit null)
+				// This ensures length("items") != 0 doesn't match when items is missing
+				return condition.NewUndefinedOperand(nil)
 			}
 			return condition.NewIntOperand(int64(numElements))
 		}, pathOperand) // pathOperand in Args for proper hash
@@ -1317,8 +1468,37 @@ func (repo *CompareCondRepo) processCompareBinaryExpr(n *ast.BinaryExpr, negate 
 		return condition.NewErrorCondition(yOperand.(condition.ErrorOperand))
 	}
 
+	// Check if this is an undefined-related comparison
+	isUndefinedCheck := xOperand.GetKind() == condition.UndefinedOperandKind ||
+		yOperand.GetKind() == condition.UndefinedOperandKind
+
 	if negate {
-		return condition.NewNotCond(repo.processCompareCondition(condition.NewCompareCond(compareOp, xOperand, yOperand), scope))
+		// For undefined checks, use category-level NOT (DefaultCatList mechanism)
+		// For regular negations, use evaluation-level NOT (undefined propagation)
+		if isUndefinedCheck {
+			// Category-level NOT for undefined checks
+			return condition.NewNotCond(repo.processCompareCondition(condition.NewCompareCond(compareOp, xOperand, yOperand), scope))
+		} else {
+			// For regular negations: instead of NOT(field == value),
+			// create direct CompareNotEqualOp comparison
+			// This allows undefined propagation to work naturally
+			var negatedOp condition.CompareOp
+			switch compareOp {
+			case condition.CompareEqualOp:
+				negatedOp = condition.CompareNotEqualOp
+			case condition.CompareLessOp:
+				negatedOp = condition.CompareGreaterOrEqualOp
+			case condition.CompareGreaterOp:
+				negatedOp = condition.CompareLessOrEqualOp
+			case condition.CompareLessOrEqualOp:
+				negatedOp = condition.CompareGreaterOp
+			case condition.CompareGreaterOrEqualOp:
+				negatedOp = condition.CompareLessOp
+			case condition.CompareNotEqualOp:
+				negatedOp = condition.CompareEqualOp
+			}
+			return repo.processCompareCondition(condition.NewCompareCond(negatedOp, xOperand, yOperand), scope)
+		}
 	} else {
 		return repo.processCompareCondition(condition.NewCompareCond(compareOp, xOperand, yOperand), scope)
 	}
@@ -1367,6 +1547,10 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 		}
 		if n.Name == "false" {
 			return repo.CondFactory.NewBooleanOperand(false)
+		}
+		// Handle undefined literal
+		if n.Name == "undefined" {
+			return condition.NewUndefinedOperand(nil)
 		}
 		// Handle null literal
 		if n.Name == "null" {
@@ -1479,6 +1663,10 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.CondFactory.NewExprOperand(
 				func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
 					xVal := xOperand.Evaluate(event, frames)
+					// Handle undefined values - arithmetic with undefined returns undefined
+					if xVal.GetKind() == condition.UndefinedOperandKind {
+						return condition.NewUndefinedOperand(nil)
+					}
 					// Handle null values - arithmetic with null returns null (not error)
 					// Let comparison operators handle null according to their semantics
 					if xVal.GetKind() == condition.NullOperandKind {
@@ -1491,6 +1679,10 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 					lv := float64(xVal.(condition.FloatOperand))
 
 					yVal := yOperand.Evaluate(event, frames)
+					// Handle undefined values - arithmetic with undefined returns undefined
+					if yVal.GetKind() == condition.UndefinedOperandKind {
+						return condition.NewUndefinedOperand(nil)
+					}
 					// Handle null values - arithmetic with null returns null (not error)
 					if yVal.GetKind() == condition.NullOperandKind {
 						return condition.NewNullOperand(nil)
@@ -1632,7 +1824,13 @@ func funcHasValue(repo *CompareCondRepo, n *ast.CallExpr, scope *ForEachScope) c
 			if kind == condition.ErrorOperandKind {
 				return arg
 			}
-			return condition.NewBooleanOperand(kind != condition.NullOperandKind)
+			// hasValue returns true only if field exists with a non-null value
+			// Both null and undefined are considered "no value"
+			result := kind != condition.NullOperandKind && kind != condition.UndefinedOperandKind
+			if false {  // Disabled debug
+				fmt.Printf("[DEBUG hasValue] arg kind=%v, result=%v\n", kind, result)
+			}
+			return condition.NewBooleanOperand(result)
 		}, argOperand) // operandKind as hash seed to avoid cache collisions
 }
 
@@ -1791,10 +1989,25 @@ func (repo *CompareCondRepo) evalOperandAccess(operand condition.Operand, scope 
 			if address.GetKind() == condition.ErrorOperandKind {
 				return address
 			}
+			if address.GetKind() == condition.UndefinedOperandKind {
+				return address
+			}
+			addressOp := address.(*condition.AddressOperand)
 			val := objectmap.GetNestedAttributeByAddress(
-				frames[address.(*condition.AddressOperand).ParameterIndex], address.(*condition.AddressOperand).Address)
+				frames[addressOp.ParameterIndex], addressOp.Address)
 			if val == nil {
-				return condition.NewNullOperand(address.(*condition.AddressOperand))
+				// Distinguish missing field from explicit null
+				// Get the field path from the FULL address (not scope-relative)
+				fieldPath := event.DictRec.AddressToFullPath(addressOp.FullAddress)
+
+				// Check if field exists in original event
+				if event.FieldExistsInOriginalEvent(fieldPath) {
+					// Field exists but is explicitly null
+					return condition.NewNullOperand(addressOp)
+				} else {
+					// Field is missing (undefined)
+					return condition.NewUndefinedOperand(addressOp)
+				}
 			}
 			return val.(condition.Operand)
 		}, operand)
@@ -1850,6 +2063,8 @@ func (repo *CompareCondRepo) evalOperandAddress(operand condition.Operand, scope
 							baseAddress := b.Evaluate(event, frames)
 							switch baseAddress.GetKind() {
 							case condition.ErrorOperandKind:
+								return baseAddress
+							case condition.UndefinedOperandKind:
 								return baseAddress
 							case condition.AddressOperandKind:
 								attrAddress = append(baseAddress.(*condition.AddressOperand).Address, addr...)
@@ -1932,6 +2147,14 @@ func (repo *CompareCondRepo) evalOperandAddress(operand condition.Operand, scope
 						io := ioAccess.Evaluate(event, frames).Convert(condition.IntOperandKind)
 						if io.GetKind() == condition.ErrorOperandKind {
 							return io
+						}
+						// Handle undefined (missing field used as array index)
+						if io.GetKind() == condition.UndefinedOperandKind {
+							return io // Propagate undefined
+						}
+						// Must be IntOperand at this point
+						if io.GetKind() != condition.IntOperandKind {
+							return condition.NewErrorOperand(fmt.Errorf("array index must be integer, got %v", io.GetKind()))
 						}
 						iov := int(io.(condition.IntOperand))
 						bov := bo.(*condition.AddressOperand)

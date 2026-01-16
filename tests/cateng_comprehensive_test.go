@@ -6,6 +6,7 @@ import (
 	"github.com/atlasgurus/rulestone/cateng"
 	c "github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/types"
+	// "github.com/zyedidia/generic/hashset"
 )
 
 // TestCategoryEngineBasicMatching tests basic category matching

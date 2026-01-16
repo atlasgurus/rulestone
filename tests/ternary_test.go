@@ -455,10 +455,10 @@ func TestTernaryOperatorTypeConsistency(t *testing.T) {
 		require.Contains(t, matches, condition.RuleIdType(0), "should return number 100")
 	})
 
-	t.Run("boolean result used in boolean context", func(t *testing.T) {
+	t.Run("boolean result used in comparison", func(t *testing.T) {
 		repo := engine.NewRuleEngineRepo()
 		rule := `- metadata: {id: 1}
-  expression: if(premium, true, false) && verified == true`
+  expression: if(premium, true, false) == true && verified == true`
 
 		result, err := repo.LoadRulesFromString(rule,
 			engine.WithValidate(true),

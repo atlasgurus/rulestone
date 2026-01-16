@@ -480,6 +480,7 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 		CondToStringMatcher:          types.NewHashMap[condition.Condition, *StringMatcher](),
 		AttributeToCompareCondRecord: make(map[string]*hashset.Set[*EvalCategoryRec]),
 		AlwaysEvaluateCategories:     types.NewHashSet[*EvalCategoryRec](),
+		UndefinedEqualityCategories:  types.NewHashSet[types.Category](),
 		ObjectAttributeMapper:        objectmap.NewObjectAttributeMapper(repo),
 		CondFactory:                  condition.NewFactory(),
 		ctx:                          repo.ctx,
@@ -499,6 +500,9 @@ func RuleEngineRepoToCompareCondRepo(repo *RuleEngineRepo) (*CompareCondRepo, er
 		}
 		result.RuleRepo.Register(condition.NewRule(condition.RuleIdType(id), cond))
 	}
+
+	// Pass UndefinedEqualityCategories to RuleRepo for DefaultCatList building
+	result.RuleRepo.UndefinedEqualityCategories = result.UndefinedEqualityCategories
 
 	// Build the string matchers
 	result.CondToStringMatcher.Each(func(key condition.Condition, value *StringMatcher) { value.Build() })
@@ -573,6 +577,9 @@ func (f *RuleEngine) MatchEvent(v interface{}) []condition.RuleIdType {
 		case condition.ErrorOperand:
 			// TODO: find a way to report errors
 			// can't report every error, have to aggregate errors and report periodic statistics
+		case condition.UndefinedOperand:
+			// Undefined results don't add to eventCategories (not applicable)
+			// This represents "the rule doesn't apply" due to missing fields
 		case condition.BooleanOperand:
 			cat := catEvaluator.GetCategory()
 			if r {

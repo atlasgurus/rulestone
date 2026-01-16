@@ -633,6 +633,8 @@ func (fb *FilterBuilder) buildFilterTables() FilterTables {
 	result.NegCats = fb.NegCats
 	result.DefaultCategories = make(map[types.Category]int)
 
+	// Add all negated categories to DefaultCatList
+	// TODO: Optimize to only include necessary negations (undefined checks, hash-optimized comparisons)
 	for cat := range fb.NegCats {
 		result.DefaultCategories[cat] = len(result.DefaultCategories)
 		result.DefaultCatList = append(result.DefaultCatList, cat)

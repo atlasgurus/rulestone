@@ -126,29 +126,29 @@
 
 - metadata:
     id: length-null-inequality
-    description: Test length() null != 0 semantics
+    description: Test length() undefined != 0 semantics (breaking change)
   expression: length("items") != 0
   tests:
     - name: missing array
       event:
         other_field: value
-      expect: true
-      description: Missing array returns null, null != 0 is true
+      expect: false
+      description: Missing array - length() returns undefined, undefined != 0 returns undefined (false)
     - name: explicit null array
       event:
         items: null
-      expect: true
-      description: Null array returns null, null != 0 is true
+      expect: false
+      description: Null array - length() returns undefined, undefined != 0 returns undefined (false)
     - name: empty array
       event:
         items: []
       expect: false
-      description: Empty array returns 0, 0 != 0 is false
+      description: Empty array - length() returns 0, 0 != 0 is false
     - name: non-empty array
       event:
         items: [{value: 1}]
       expect: true
-      description: Non-empty array returns 1, 1 != 0 is true
+      description: Non-empty array - length() returns 1, 1 != 0 is true
 
 - metadata:
     id: length-combined-conditions

@@ -811,8 +811,8 @@
 # TestMultipleRules_EmptyEventHandling - How multiple rules handle empty events
 - metadata:
     id: null-field-check
-    description: Value is null
-  expression: nullCheckField == null
+    description: Value is null or undefined
+  expression: nullCheckField == null || nullCheckField == undefined
   tests:
     - name: matches empty event
       event: {}

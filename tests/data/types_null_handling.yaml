@@ -29,16 +29,16 @@
     description: Test null behavior in inequality comparison
   expression: null_neq_value != 0
   tests:
-    - name: missing field treated as null
+    - name: missing field returns undefined
       event:
         null_neq_other: data
-      expect: true
-      description: Missing 'null_neq_value' field (null) should be not equal to 0
+      expect: false
+      description: Missing 'null_neq_value' field returns undefined, undefined != 0 → undefined (false)
     - name: explicit null field
       event:
         null_neq_value: null
       expect: true
-      description: Explicit null value should be not equal to 0
+      description: Explicit YAML null is NullOperand, null != 0 returns true
     - name: zero value vs null
       event:
         null_neq_value: 0
@@ -248,14 +248,14 @@
           - forall_elem_value: null
           - forall_elem_value: 20
       expect: true
-      description: Array containing elements with null values - null != 0 should be true
+      description: ForAll with one element passing - array has null (undefined) and 20, 20 != 0 is true, so forAll returns true
     - name: array with missing fields
       event:
         forall_elem_items:
           - forall_elem_other: field
           - forall_elem_value: 15
-      expect: true
-      description: Array elements with missing value field - null != 0 should be true
+      expect: false
+      description: Array elements with missing value field - undefined != 0 returns undefined (false)
 
 # === Null Handling in String Operations ===
 

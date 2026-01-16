@@ -2,6 +2,7 @@ package condition
 
 import (
 	"github.com/atlasgurus/rulestone/types"
+	"github.com/zyedidia/generic/hashset"
 )
 
 type RuleIdType uint32
@@ -23,7 +24,8 @@ type RuleRec struct {
 }
 
 type RuleRepo struct {
-	Rules []*Rule
+	Rules                       []*Rule
+	UndefinedEqualityCategories *hashset.Set[types.Category] // Categories that check "field == undefined"
 }
 
 func NewRuleRepo(rules []*Rule) *RuleRepo {

@@ -7,8 +7,19 @@ import (
 	c "github.com/atlasgurus/rulestone/condition"
 	"github.com/atlasgurus/rulestone/engine"
 	"github.com/atlasgurus/rulestone/types"
+	"github.com/zyedidia/generic/hashset"
 	"github.com/atlasgurus/rulestone/utils"
 )
+
+// Helper function to create a hashset from a category slice
+// For tests, we assume all categories in the event were evaluated
+func makeCatSet(cats []types.Category) *hashset.Set[types.Category] {
+	result := types.NewHashSet[types.Category]()
+	for _, cat := range cats {
+		result.Put(cat)
+	}
+	return result
+}
 
 // Benchmark rule registration from file
 func BenchmarkRuleRegistration(b *testing.B) {

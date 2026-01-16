@@ -19,7 +19,7 @@ func TestBooleanLiterals(t *testing.T) {
 
 - metadata:
     id: null-literal
-  expression: missingField == null
+  expression: missingField == undefined
 
 - metadata:
     id: true-comparison
@@ -47,27 +47,32 @@ func TestBooleanLiterals(t *testing.T) {
 		{
 			name:      "true literal matches",
 			event:     map[string]interface{}{"isActive": true},
-			expectIDs: []string{"true-literal", "null-literal"}, // null-literal also matches (missingField is missing/null)
+			expectIDs: []string{"true-literal", "null-literal"}, // null-literal also matches (missingField is undefined)
 		},
 		{
 			name:      "false literal matches",
 			event:     map[string]interface{}{"isDisabled": false},
-			expectIDs: []string{"false-literal", "null-literal"}, // null-literal also matches (missingField is missing/null)
+			expectIDs: []string{"false-literal", "null-literal"}, // null-literal also matches (missingField is undefined)
 		},
 		{
-			name:      "null literal matches",
-			event:     map[string]interface{}{"missingField": nil},
+			name:      "undefined literal matches when field truly missing",
+			event:     map[string]interface{}{},
 			expectIDs: []string{"null-literal"},
+		},
+		{
+			name:      "undefined literal doesn't match explicit null",
+			event:     map[string]interface{}{"missingField": nil},
+			expectIDs: []string{}, // Field is explicitly null, not undefined
 		},
 		{
 			name:      "complex with true literal",
 			event:     map[string]interface{}{"status": "active", "verified": true},
-			expectIDs: []string{"true-comparison", "null-literal"}, // null-literal also matches (missingField is missing/null)
+			expectIDs: []string{"true-comparison", "null-literal"}, // null-literal also matches (missingField is undefined)
 		},
 		{
 			name:      "true literal doesn't match false",
 			event:     map[string]interface{}{"isActive": false},
-			expectIDs: []string{"null-literal"}, // null-literal matches (missingField is missing/null)
+			expectIDs: []string{"null-literal"}, // null-literal matches (missingField is undefined)
 		},
 	}
 

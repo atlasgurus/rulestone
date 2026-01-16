@@ -448,12 +448,52 @@ expression: isEqualToAny(status, "active", "pending")
 #### Date Functions
 
 ```yaml
+# Current time
+expression: now()
+
 # Date comparison
 expression: date(dob) < date("11/29/1968")
 
 # Date in different formats
 expression: date("2023-03-29") > date(user.registered)
 ```
+
+#### Duration Functions
+
+Duration functions convert time units to nanoseconds for time arithmetic:
+
+```yaml
+# Check if event happened within last 5 days
+expression: created_at > now() - days(5)
+
+# Check if session is recent (within 2 hours)
+expression: session_start > now() - hours(2)
+
+# Check if event occurred within last 30 minutes
+expression: event_time >= now() - minutes(30)
+
+# Check if timestamp is older than 10 seconds
+expression: timestamp < now() - seconds(10)
+
+# Compound durations (1.5 days from now)
+expression: deadline <= now() + days(1) + hours(12)
+
+# Time difference comparisons
+expression: (now() - last_login) < days(30)
+expression: (now() - created_at) >= hours(24)
+
+# Fractional durations
+expression: event_time > now() - days(0.5)  # 12 hours
+expression: session > now() - hours(2.5)    # 2.5 hours
+```
+
+**Available functions**:
+- `days(n)` - Converts n days to nanoseconds
+- `hours(n)` - Converts n hours to nanoseconds
+- `minutes(n)` - Converts n minutes to nanoseconds
+- `seconds(n)` - Converts n seconds to nanoseconds
+
+**Note**: Arguments can be integers, floats, or constant expressions (e.g., `minutes(30 + 15)`).
 
 #### Quantifier Functions
 

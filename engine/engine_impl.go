@@ -1362,6 +1362,121 @@ func (repo *CompareCondRepo) funcLength(n *ast.CallExpr, scope *ForEachScope) co
 		}, pathOperand) // pathOperand in Args for proper hash
 }
 
+// Duration functions for time arithmetic
+// These convert numeric values to nanoseconds for use with time operations
+
+func (repo *CompareCondRepo) funcDays(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("days() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			// Calculate nanoseconds: days * 24 * 60 * 60 * 1e9
+			days := float64(numericArg.(condition.FloatOperand))
+			nanos := int64(days * 24 * 60 * 60 * 1e9)
+			return condition.NewIntOperand(nanos)
+		}, argOperand)
+}
+
+func (repo *CompareCondRepo) funcHours(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("hours() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			// Calculate nanoseconds: hours * 60 * 60 * 1e9
+			hours := float64(numericArg.(condition.FloatOperand))
+			nanos := int64(hours * 60 * 60 * 1e9)
+			return condition.NewIntOperand(nanos)
+		}, argOperand)
+}
+
+func (repo *CompareCondRepo) funcMinutes(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("minutes() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			// Calculate nanoseconds: minutes * 60 * 1e9
+			minutes := float64(numericArg.(condition.FloatOperand))
+			nanos := int64(minutes * 60 * 1e9)
+			return condition.NewIntOperand(nanos)
+		}, argOperand)
+}
+
+func (repo *CompareCondRepo) funcSeconds(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("seconds() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			// Calculate nanoseconds: seconds * 1e9
+			secs := float64(numericArg.(condition.FloatOperand))
+			nanos := int64(secs * 1e9)
+			return condition.NewIntOperand(nanos)
+		}, argOperand)
+}
+
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
 	if scope.Evaluator != nil {
@@ -1629,6 +1744,14 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.funcForSome(n, scope)
 		case "length":
 			return repo.funcLength(n, scope)
+		case "days":
+			return repo.funcDays(n, scope)
+		case "hours":
+			return repo.funcHours(n, scope)
+		case "minutes":
+			return repo.funcMinutes(n, scope)
+		case "seconds":
+			return repo.funcSeconds(n, scope)
 		case "sqrt":
 			argOperand := repo.evalAstNode(n.Args[0], scope)
 			if argOperand.GetKind() == condition.ErrorOperandKind {
@@ -1737,6 +1860,26 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			}
 			return repo.genEvalForCompareOperands(
 				condition.CompareNotEqualOp, xOperand, condition.NewBooleanOperand(true))
+		case token.SUB:
+			// Handle unary minus for negative numbers
+			operand := repo.evalAstNode(n.X, scope)
+			if operand.GetKind() == condition.ErrorOperandKind {
+				return operand
+			}
+			// Negate the operand
+			return repo.CondFactory.NewExprOperand(
+				func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+					val := operand.Evaluate(event, frames)
+					if val.GetKind() == condition.ErrorOperandKind {
+						return val
+					}
+					// Convert to numeric and negate
+					numericVal := val.Convert(condition.FloatOperandKind)
+					if numericVal.GetKind() == condition.ErrorOperandKind {
+						return numericVal
+					}
+					return condition.NewFloatOperand(-float64(numericVal.(condition.FloatOperand)))
+				}, operand)
 		default:
 			return condition.NewErrorOperand(
 				repo.ctx.Errorf("unsupported operator: %s", n.Op.String()))

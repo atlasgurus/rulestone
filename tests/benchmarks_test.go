@@ -421,11 +421,11 @@ func BenchmarkManyRules(b *testing.B) {
 	}
 }
 
-// Benchmark null check performance (Bug #2 fix)
+// Benchmark undefined check performance (checks for missing field)
 func BenchmarkNullCheck(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
-	rules := `- metadata: {id: null-check}
-  expression: field == null`
+	rules := `- metadata: {id: undefined-check}
+  expression: field == undefined`
 	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)

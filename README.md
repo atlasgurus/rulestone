@@ -523,6 +523,51 @@ expression: length("items") > 0 && forAll("items", "item", item.validated == tru
 - `length("items") != 0` with missing array → false (undefined != 0 → undefined)
 - To match missing OR non-empty: `items == undefined || length("items") > 0`
 - Use `hasValue("items")` to check if array exists with a value
+- `length(iterator)` also works with filter/map results
+
+#### Array Transformation Functions (filter/map)
+
+Transform and filter arrays using composable iterator functions with **zero intermediate allocations**:
+
+```yaml
+# Filter array elements
+expression: length(filter("items", "item", item.active == true)) > 5
+
+# Map array to values
+expression: sum(map("items", "item", item.price)) > 1000
+
+# Filter then map (composition)
+expression: sum(map(filter("items", "item", item.active == true), "item", item.price)) > 500
+
+# Multiple filters
+expression: length(filter(filter("items", "item", item.category == "food"), "item", item.price > 10)) > 0
+
+# Sum with direct array
+expression: sum("items", "item", item.price * item.quantity) > 100
+
+# Average values
+expression: avg("ratings", "r", r) >= 4.0
+
+# Average of filtered elements
+expression: avg(filter("users", "user", user.age >= 18), "user", user.score) >= 75
+```
+
+**Available functions**:
+
+**Transformation**:
+- `filter(array_or_iterator, element_name, condition)` - Select elements matching condition
+- `map(array_or_iterator, element_name, expression)` - Transform elements to values
+
+**Aggregation**:
+- `sum(iterator)` or `sum(array, elem, expr)` - Sum values
+- `avg(iterator)` or `avg(array, elem, expr)` - Average values
+- `length(iterator)` - Count filtered/mapped elements
+
+**Key features**:
+- **Zero allocations**: Iterators fuse into single pass
+- **Composable**: Chain filter + filter, filter + map, etc.
+- **Lazy evaluation**: Only executes when consumed by aggregation
+- **Handles undefined**: Skips undefined/null values automatically
 
 #### Conditional/Ternary Operator
 

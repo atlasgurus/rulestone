@@ -245,6 +245,7 @@ const (
 	ListOperandKind                   = 12
 	ErrorOperandKind                  = 13
 	UndefinedOperandKind              = 14
+	IteratorOperandKind               = 15
 )
 
 type EvalOperandFunc func(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand
@@ -947,6 +948,89 @@ func (v UndefinedOperand) Greater(o Operand) bool {
 
 func (v UndefinedOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
 	return v
+}
+
+// IteratorOperand represents a lazy iterator over an array with filter/map transformations
+// Enables zero-allocation composition like: sum(map(filter("items", "item", item.active), "item", item.price))
+type IteratorOperand struct {
+	ArrayPath string            // Path to source array (e.g., "items")
+	Steps     []IteratorStep    // Transformation steps (filter, map)
+}
+
+type IteratorStepType int
+
+const (
+	FilterStepType IteratorStepType = iota
+	MapStepType
+)
+
+type IteratorStep struct {
+	Type         IteratorStepType
+	Operand      Operand // Condition for filter, expression for map
+	NestingLevel int     // Scope level for frame binding
+}
+
+func NewIteratorOperand(arrayPath string) *IteratorOperand {
+	return &IteratorOperand{
+		ArrayPath: arrayPath,
+		Steps:     []IteratorStep{},
+	}
+}
+
+func (v *IteratorOperand) Convert(to OperandKind) Operand {
+	return NewErrorOperand(fmt.Errorf("iterator cannot be converted to %d", to))
+}
+
+func (v *IteratorOperand) IsConst() bool {
+	return false
+}
+
+func (v *IteratorOperand) GetKind() OperandKind {
+	return IteratorOperandKind
+}
+
+func (v *IteratorOperand) GetHash() uint64 {
+	// Hash based on array path and steps
+	hashValues := []uint64{uint64(IteratorOperandKind), immutable.HashString(v.ArrayPath)}
+
+	// Hash each step
+	for _, step := range v.Steps {
+		hashValues = append(hashValues, step.Operand.GetHash())
+	}
+
+	return immutable.HashInt(hashValues)
+}
+
+func (v *IteratorOperand) Equals(o immutable.SetElement) bool {
+	other, ok := o.(*IteratorOperand)
+	if !ok {
+		return false
+	}
+
+	// Compare array paths
+	if v.ArrayPath != other.ArrayPath {
+		return false
+	}
+
+	// Compare steps
+	if len(v.Steps) != len(other.Steps) {
+		return false
+	}
+	for i, step := range v.Steps {
+		if step.Type != other.Steps[i].Type || !step.Operand.Equals(other.Steps[i].Operand) {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *IteratorOperand) Greater(o Operand) bool {
+	panic("iterator cannot be compared")
+}
+
+func (v *IteratorOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
+	// Iterators cannot be evaluated directly - they must be consumed by aggregation functions
+	return NewErrorOperand(fmt.Errorf("iterator must be consumed by sum(), length(), etc."))
 }
 
 type CompareCondition struct {

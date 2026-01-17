@@ -25,9 +25,11 @@ import (
 // This allows users to use intuitive function names like "if" without
 // conflicting with Go's syntax.
 func preprocessExpression(expr string) string {
-	// Replace "if(" with "ifFunc(" to avoid Go parser keyword conflict
-	// Use regex to only replace when followed by opening parenthesis
+	// Replace reserved keywords with valid identifiers before parsing
+	// "if(" → "ifFunc(" to avoid Go keyword conflict
+	// "map(" → "mapFunc(" since map is a type keyword in Go
 	result := regexp.MustCompile(`\bif\s*\(`).ReplaceAllString(expr, "ifFunc(")
+	result = regexp.MustCompile(`\bmap\s*\(`).ReplaceAllString(result, "mapFunc(")
 	return result
 }
 
@@ -912,6 +914,41 @@ func (repo *CompareCondRepo) setupEvalForEach(parentScope *ForEachScope, element
 	}
 }
 
+// setupIteratorScope creates a scope for iterator functions (filter/map/sum/avg)
+// Similar to setupEvalForEach but simpler (no need to return complex address info)
+func (repo *CompareCondRepo) setupIteratorScope(
+	arrayPath string,
+	elementName string,
+	parentNestingLevel int,
+	parentScope *ForEachScope,
+) (*objectmap.AttributeAddress, *ForEachScope, error) {
+	// Get array address
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", parentScope)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get dictionary for array elements
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", parentScope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	// Create new scope
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: parentNestingLevel + 1,
+		ParentScope:  parentScope,
+		AttrDictRec:  newDictRec,
+	}
+
+	return arrayAddress, newScope, nil
+}
+
 func (repo *CompareCondRepo) genEvalForAllCondition(
 	path string, element string, cond condition.Condition, parentScope *ForEachScope) condition.Operand {
 
@@ -1350,15 +1387,45 @@ func (repo *CompareCondRepo) funcLength(n *ast.CallExpr, scope *ForEachScope) co
 		return condition.NewErrorOperand(fmt.Errorf("wrong number of arguments for length() function"))
 	}
 
-	// Evaluate the path argument (should be a string like "items")
-	pathOperand := repo.evalAstNode(n.Args[0], scope)
-	if pathOperand.GetKind() == condition.ErrorOperandKind {
-		return pathOperand
+	// Evaluate the argument - could be string path or iterator
+	arg := repo.evalAstNode(n.Args[0], scope)
+	if arg.GetKind() == condition.ErrorOperandKind {
+		return arg
 	}
 
-	if pathOperand.GetKind() != condition.StringOperandKind {
-		return condition.NewErrorOperand(fmt.Errorf("length() only supports string path"))
+	// If iterator, count filtered elements
+	if arg.GetKind() == condition.IteratorOperandKind {
+		iterator := arg.(*condition.IteratorOperand)
+
+		// Get array address at compile time
+		arrayAddress, err := getAttributePathAddress(iterator.ArrayPath+"[]", scope)
+		if err != nil {
+			return condition.NewErrorOperand(err)
+		}
+
+		return repo.CondFactory.NewExprOperand(
+			func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+				count := 0
+
+				err := repo.executeIterator(iterator, arrayAddress, event, frames, func(value condition.Operand) bool {
+					count++
+					return true
+				})
+
+				if err != nil {
+					return condition.NewUndefinedOperand(nil)
+				}
+
+				return condition.NewIntOperand(int64(count))
+			})
 	}
+
+	// Original string path logic
+	if arg.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("length() argument must be string path or iterator"))
+	}
+
+	pathOperand := arg
 
 	path := string(pathOperand.(condition.StringOperand))
 
@@ -1885,6 +1952,604 @@ func (repo *CompareCondRepo) funcPow(n *ast.CallExpr, scope *ForEachScope) condi
 		}, baseOperand, expOperand, condition.StringOperand("pow"))
 }
 
+// Iterator functions: filter, map, reduce
+// These enable zero-allocation functional programming over arrays
+
+// filter(array_or_iterator, element_name, condition) - Returns iterator with filter step
+func (repo *CompareCondRepo) funcFilter(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("filter() requires 3 arguments: array_or_iterator, element_name, condition"))
+	}
+
+	// Parse first argument - could be array path (string) or iterator
+	firstArg := repo.evalAstNode(n.Args[0], scope)
+	if firstArg.GetKind() == condition.ErrorOperandKind {
+		return firstArg
+	}
+
+	// Get element name
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("filter() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	// Get condition expression AST
+	condExpr := n.Args[2]
+
+	var iterator *condition.IteratorOperand
+	var parentNestingLevel int
+	var arrayPath string
+
+	// Check if first arg is an iterator (chaining)
+	if firstArg.GetKind() == condition.IteratorOperandKind {
+		// Chaining onto existing iterator
+		existingIter := firstArg.(*condition.IteratorOperand)
+		iterator = &condition.IteratorOperand{
+			ArrayPath: existingIter.ArrayPath,
+			Steps:     make([]condition.IteratorStep, len(existingIter.Steps)),
+		}
+		copy(iterator.Steps, existingIter.Steps)
+		arrayPath = existingIter.ArrayPath
+
+		// Nesting level is after the last step
+		if len(existingIter.Steps) > 0 {
+			parentNestingLevel = existingIter.Steps[len(existingIter.Steps)-1].NestingLevel
+		} else {
+			parentNestingLevel = scope.NestingLevel
+		}
+	} else {
+		// Starting from array path
+		if firstArg.GetKind() != condition.StringOperandKind {
+			return condition.NewErrorOperand(fmt.Errorf("filter() first argument must be array path or iterator"))
+		}
+		arrayPath = string(firstArg.(condition.StringOperand))
+
+		// Create new iterator
+		iterator = condition.NewIteratorOperand(arrayPath)
+		parentNestingLevel = scope.NestingLevel
+	}
+
+	// Setup array iteration scope (similar to setupEvalForEach)
+	_, newScope, err := repo.setupIteratorScope(arrayPath, elementName, parentNestingLevel, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	// Evaluate condition in new scope
+	condOperand := repo.evalAstNode(condExpr, newScope)
+	if condOperand.GetKind() == condition.ErrorOperandKind {
+		return condOperand
+	}
+
+	// Append filter step to iterator
+	iterator.Steps = append(iterator.Steps, condition.IteratorStep{
+		Type:         condition.FilterStepType,
+		Operand:      condOperand,
+		NestingLevel: newScope.NestingLevel,
+	})
+
+	return iterator
+}
+
+// map(array_or_iterator, element_name, expression) - Returns iterator with map step
+func (repo *CompareCondRepo) funcMap(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("map() requires 3 arguments: array_or_iterator, element_name, expression"))
+	}
+
+	// Parse first argument
+	firstArg := repo.evalAstNode(n.Args[0], scope)
+	if firstArg.GetKind() == condition.ErrorOperandKind {
+		return firstArg
+	}
+
+	// Get element name
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("map() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	// Get expression AST
+	exprAst := n.Args[2]
+
+	var iterator *condition.IteratorOperand
+	var parentNestingLevel int
+	var arrayPath string
+
+	// Check if first arg is iterator (chaining)
+	if firstArg.GetKind() == condition.IteratorOperandKind {
+		existingIter := firstArg.(*condition.IteratorOperand)
+		iterator = &condition.IteratorOperand{
+			ArrayPath: existingIter.ArrayPath,
+			Steps:     make([]condition.IteratorStep, len(existingIter.Steps)),
+		}
+		copy(iterator.Steps, existingIter.Steps)
+		arrayPath = existingIter.ArrayPath
+
+		if len(existingIter.Steps) > 0 {
+			parentNestingLevel = existingIter.Steps[len(existingIter.Steps)-1].NestingLevel
+		} else {
+			parentNestingLevel = scope.NestingLevel
+		}
+	} else {
+		// Starting from array path
+		if firstArg.GetKind() != condition.StringOperandKind {
+			return condition.NewErrorOperand(fmt.Errorf("map() first argument must be array path or iterator"))
+		}
+		arrayPath = string(firstArg.(condition.StringOperand))
+
+		iterator = condition.NewIteratorOperand(arrayPath)
+		parentNestingLevel = scope.NestingLevel
+	}
+
+	// Setup array iteration scope
+	_, newScope, err := repo.setupIteratorScope(arrayPath, elementName, parentNestingLevel, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	// Evaluate expression in scope
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	// Append map step
+	iterator.Steps = append(iterator.Steps, condition.IteratorStep{
+		Type:         condition.MapStepType,
+		Operand:      exprOperand,
+		NestingLevel: newScope.NestingLevel,
+	})
+
+	return iterator
+}
+
+// reduce(array_or_iterator, accumulator_name, element_name, expression, initial_value) - Custom aggregation
+func (repo *CompareCondRepo) funcReduce(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	// TODO: Implement reduce - complex dual-variable scoping
+	return condition.NewErrorOperand(fmt.Errorf("reduce() not yet implemented"))
+}
+
+// sum(iterator) or sum(array_path, element_name, expression) - Sum values
+func (repo *CompareCondRepo) funcSum(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 && len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("sum() requires 1 argument (iterator) or 3 arguments (array, element, expression)"))
+	}
+
+	firstArg := repo.evalAstNode(n.Args[0], scope)
+	if firstArg.GetKind() == condition.ErrorOperandKind {
+		return firstArg
+	}
+
+	// If first arg is iterator
+	if firstArg.GetKind() == condition.IteratorOperandKind {
+		iterator := firstArg.(*condition.IteratorOperand)
+
+		// Check if iterator has map step
+		hasMapStep := false
+		for _, step := range iterator.Steps {
+			if step.Type == condition.MapStepType {
+				hasMapStep = true
+				break
+			}
+		}
+
+		if hasMapStep {
+			// Iterator already has mapped values
+			if len(n.Args) != 1 {
+				return condition.NewErrorOperand(fmt.Errorf("sum(mapped_iterator) takes 1 argument, got %d", len(n.Args)))
+			}
+			return repo.sumFromIterator(iterator, scope)
+		} else {
+			// Filter-only iterator, need expression
+			if len(n.Args) != 3 {
+				return condition.NewErrorOperand(fmt.Errorf("sum(filter_iterator, elem, expr) requires 3 arguments, got %d", len(n.Args)))
+			}
+
+			elemOperand := repo.evalAstNode(n.Args[1], scope)
+			if elemOperand.GetKind() != condition.StringOperandKind {
+				return condition.NewErrorOperand(fmt.Errorf("sum() element name must be string"))
+			}
+
+			exprAst := n.Args[2]
+
+			_, newScope, err := repo.setupIteratorScope(iterator.ArrayPath, string(elemOperand.(condition.StringOperand)), scope.NestingLevel, scope)
+			if err != nil {
+				return condition.NewErrorOperand(err)
+			}
+
+			exprOperand := repo.evalAstNode(exprAst, newScope)
+			if exprOperand.GetKind() == condition.ErrorOperandKind {
+				return exprOperand
+			}
+
+			// Add map step to iterator
+			iterator.Steps = append(iterator.Steps, condition.IteratorStep{
+				Type:         condition.MapStepType,
+				Operand:      exprOperand,
+				NestingLevel: newScope.NestingLevel,
+			})
+
+			return repo.sumFromIterator(iterator, scope)
+		}
+	}
+
+	// Direct array sum (3 args)
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("sum(array, elem, expr) requires 3 arguments, got %d", len(n.Args)))
+	}
+
+	// Direct array sum (no iterator)
+	if firstArg.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("sum() first argument must be array path or iterator"))
+	}
+	arrayPath := string(firstArg.(condition.StringOperand))
+
+	// Get element name
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("sum() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	// Get expression
+	exprAst := n.Args[2]
+
+	// Setup array iteration
+	arrayAddress, newScope, err := repo.setupIteratorScope(arrayPath, elementName, scope.NestingLevel, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			sum := 0.0
+			for i := 0; i < numElements; i++ {
+				elemValue := objectmap.GetNestedAttributeByAddress(
+					frames[arrayAddress.ParentParameterIndex],
+					append(arrayAddress.Address, i))
+
+				if elemValue == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = elemValue
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+				}
+			}
+
+			return condition.NewFloatOperand(sum)
+		}, firstArg, elemOperand)
+}
+
+// Helper: sum from iterator
+func (repo *CompareCondRepo) sumFromIterator(iterator *condition.IteratorOperand, scope *ForEachScope) condition.Operand {
+	// Get array address at compile time
+	arrayAddress, err := getAttributePathAddress(iterator.ArrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			sum := 0.0
+
+			err := repo.executeIterator(iterator, arrayAddress, event, frames, func(value condition.Operand) bool {
+				numeric := value.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+				}
+				return true
+			})
+
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(sum)
+		})
+}
+
+// avg(iterator) or avg(array_path, element_name, expression) - Average values
+func (repo *CompareCondRepo) funcAvg(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 && len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("avg() requires 1 argument (iterator) or 3 arguments (array, element, expression)"))
+	}
+
+	firstArg := repo.evalAstNode(n.Args[0], scope)
+	if firstArg.GetKind() == condition.ErrorOperandKind {
+		return firstArg
+	}
+
+	// If first arg is iterator
+	if firstArg.GetKind() == condition.IteratorOperandKind {
+		iterator := firstArg.(*condition.IteratorOperand)
+
+		// Check if iterator has map step (1 arg form) or needs expression (3 arg form)
+		hasMapStep := false
+		for _, step := range iterator.Steps {
+			if step.Type == condition.MapStepType {
+				hasMapStep = true
+				break
+			}
+		}
+
+		if hasMapStep {
+			// Iterator already has mapped values, just average them
+			if len(n.Args) != 1 {
+				return condition.NewErrorOperand(fmt.Errorf("avg(mapped_iterator) takes 1 argument, got %d", len(n.Args)))
+			}
+			return repo.avgFromIterator(iterator, scope)
+		} else {
+			// Iterator is filter-only, need element name and expression
+			if len(n.Args) != 3 {
+				return condition.NewErrorOperand(fmt.Errorf("avg(filter_iterator, elem, expr) requires 3 arguments, got %d", len(n.Args)))
+			}
+
+			// Get element name and expression to evaluate on filtered elements
+			elemOperand := repo.evalAstNode(n.Args[1], scope)
+			if elemOperand.GetKind() != condition.StringOperandKind {
+				return condition.NewErrorOperand(fmt.Errorf("avg() element name must be string"))
+			}
+			// elementName := string(elemOperand.(condition.StringOperand)) // Not used yet
+
+			exprAst := n.Args[2]
+
+			// Create scope for expression
+			_, newScope, err := repo.setupIteratorScope(iterator.ArrayPath, string(elemOperand.(condition.StringOperand)), scope.NestingLevel, scope)
+			if err != nil {
+				return condition.NewErrorOperand(err)
+			}
+
+			exprOperand := repo.evalAstNode(exprAst, newScope)
+			if exprOperand.GetKind() == condition.ErrorOperandKind {
+				return exprOperand
+			}
+
+			// Add map step to iterator so avgFromIterator can consume it
+			iterator.Steps = append(iterator.Steps, condition.IteratorStep{
+				Type:         condition.MapStepType,
+				Operand:      exprOperand,
+				NestingLevel: newScope.NestingLevel,
+			})
+
+			return repo.avgFromIterator(iterator, scope)
+		}
+	}
+
+	// Direct array avg (3 args)
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("avg(array, elem, expr) requires 3 arguments, got %d", len(n.Args)))
+	}
+
+	// Direct array avg
+	if firstArg.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("avg() first argument must be array path or iterator"))
+	}
+	arrayPath := string(firstArg.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("avg() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	exprAst := n.Args[2]
+
+	arrayAddress, newScope, err := repo.setupIteratorScope(arrayPath, elementName, scope.NestingLevel, scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			if numElements == 0 {
+				return condition.NewUndefinedOperand(nil) // Can't average empty
+			}
+
+			sum := 0.0
+			count := 0
+
+			for i := 0; i < numElements; i++ {
+				elemValue := objectmap.GetNestedAttributeByAddress(
+					frames[arrayAddress.ParentParameterIndex],
+					append(arrayAddress.Address, i))
+
+				if elemValue == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = elemValue
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+					count++
+				}
+			}
+
+			if count == 0 {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(sum / float64(count))
+		}, firstArg, elemOperand)
+}
+
+// Helper: avg from iterator
+func (repo *CompareCondRepo) avgFromIterator(iterator *condition.IteratorOperand, scope *ForEachScope) condition.Operand {
+	// Get array address at compile time
+	arrayAddress, err := getAttributePathAddress(iterator.ArrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			sum := 0.0
+			count := 0
+
+			err := repo.executeIterator(iterator, arrayAddress, event, frames, func(value condition.Operand) bool {
+				numeric := value.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+					count++
+				}
+				return true
+			})
+
+			if err != nil || count == 0 {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(sum / float64(count))
+		})
+}
+
+// executeIterator - Core iterator executor that runs iterator chain in single pass
+func (repo *CompareCondRepo) executeIterator(
+	iterator *condition.IteratorOperand,
+	arrayAddress *objectmap.AttributeAddress,
+	event *objectmap.ObjectAttributeMap,
+	frames []interface{},
+	consumer func(condition.Operand) bool,
+) error {
+
+	// Get number of elements
+	numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+	if err != nil {
+		return err
+	}
+
+	// Build address for iteration (following forAll pattern exactly)
+	parentsFrame := frames[arrayAddress.ParentParameterIndex]
+	currentAddressLen := len(arrayAddress.Address)
+	currentAddress := make([]int, currentAddressLen+1)
+	copy(currentAddress, arrayAddress.Address)
+
+	if false { // Debug
+		fmt.Printf("[DEBUG executeIterator] ParentIndex=%d, AddressLen=%d, Address=%v\n",
+			arrayAddress.ParentParameterIndex, currentAddressLen, arrayAddress.Address)
+		fmt.Printf("[DEBUG] parentsFrame type: %T\n", parentsFrame)
+	}
+
+	// Iterate source array once
+	for i := 0; i < numElements; i++ {
+		// Get element (already an Operand from pre-mapped Values)
+		currentAddress[currentAddressLen] = i
+		newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+		if false { // Debug
+			fmt.Printf("[DEBUG] i=%d, currentAddress=%v, newFrame type=%T\n", i, currentAddress, newFrame)
+			if arr, ok := parentsFrame.([]interface{}); ok && len(arr) > 0 {
+				fmt.Printf("[DEBUG] parentsFrame[0] type=%T\n", arr[0])
+				if arr2, ok2 := arr[0].([]interface{}); ok2 && len(arr2) > 0 {
+					fmt.Printf("[DEBUG] parentsFrame[0][0] type=%T\n", arr2[0])
+				}
+			}
+		}
+
+		if newFrame == nil {
+			continue
+		}
+
+		// newFrame is the element's values container ([]interface{}), not a single Operand
+		// This is correct - elements are stored as frames for field access
+		shouldInclude := true
+		var finalValue condition.Operand // Will be set by map step, or undefined for filter-only
+
+		// Apply each step in the iterator chain
+		for _, step := range iterator.Steps {
+			// Bind element frame to this step's scope level
+			frames[step.NestingLevel] = newFrame
+
+			switch step.Type {
+			case condition.FilterStepType:
+				// Evaluate filter condition (accesses element fields via frame)
+				result := step.Operand.Evaluate(event, frames)
+
+				// Check if passes filter
+				boolResult := result.Convert(condition.BooleanOperandKind)
+				if boolResult.GetKind() != condition.BooleanOperandKind ||
+					!bool(boolResult.(condition.BooleanOperand)) {
+					shouldInclude = false
+					break // Skip this element
+				}
+
+			case condition.MapStepType:
+				// Transform element to value (evaluate expression on frame)
+				finalValue = step.Operand.Evaluate(event, frames)
+
+				// If map returns undefined, exclude element
+				if finalValue.GetKind() == condition.UndefinedOperandKind {
+					shouldInclude = false
+					break
+				}
+
+				// Note: For chained maps like map(map(...), "val", val * 2),
+				// the second map references "val" which should be the result of first map
+				// But we've bound newFrame (original element) to frames[step.NestingLevel]
+				// This won't work for map chaining yet - need to handle specially
+			}
+		}
+
+		// If element passed all steps, give to consumer
+		if shouldInclude {
+			// For filter-only iterations, finalValue is nil - use placeholder
+			// length() doesn't care about the value, just counts
+			valueToPass := finalValue
+			if valueToPass == nil {
+				valueToPass = condition.NewUndefinedOperand(nil) // Placeholder
+			}
+
+			if !consumer(valueToPass) {
+				break // Consumer says stop
+			}
+		}
+	}
+
+	return nil
+}
+
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
 	if scope.Evaluator != nil {
@@ -2163,6 +2828,16 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return repo.funcMinutes(n, scope)
 		case "seconds":
 			return repo.funcSeconds(n, scope)
+		case "filter":
+			return repo.funcFilter(n, scope)
+		case "map", "mapFunc":
+			return repo.funcMap(n, scope)
+		case "reduce":
+			return repo.funcReduce(n, scope)
+		case "sum":
+			return repo.funcSum(n, scope)
+		case "avg":
+			return repo.funcAvg(n, scope)
 		case "sqrt":
 			argOperand := repo.evalAstNode(n.Args[0], scope)
 			if argOperand.GetKind() == condition.ErrorOperandKind {
@@ -2547,6 +3222,11 @@ func (repo *CompareCondRepo) evalOperandAccess(operand condition.Operand, scope 
 	}
 
 	if operand.GetKind() == condition.ExpressionOperandKind {
+		return operand
+	}
+
+	// Iterator operands are already fully evaluated, just return them
+	if operand.GetKind() == condition.IteratorOperandKind {
 		return operand
 	}
 

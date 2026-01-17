@@ -524,6 +524,96 @@ expression: length("items") > 0 && forAll("items", "item", item.validated == tru
 - To match missing OR non-empty: `items == undefined || length("items") > 0`
 - Use `hasValue("items")` to check if array exists with a value
 
+#### Conditional/Ternary Operator
+
+The `if()` function provides conditional expressions for ternary logic:
+
+```yaml
+# Basic conditional - returns different values based on condition
+expression: if(age >= 18, "adult", "minor") == "adult"
+
+# Conditional with numeric values
+expression: if(premium, discount * 2, discount) >= 10
+
+# Nested conditionals for multiple conditions
+expression: if(score >= 90, "A", if(score >= 80, "B", "C")) == "B"
+
+# Use in arithmetic expressions
+expression: if(premium, 100, 50) + bonus == 120
+
+# Use in comparisons
+expression: price < if(vip, 100, 200)
+
+# Select between field values
+expression: if(use_alt, alt_value, main_value) > 100
+```
+
+**Syntax**: `if(condition, true_value, false_value)`
+
+**Behavior**:
+- Evaluates `condition` to boolean
+- Returns `true_value` if condition is true
+- Returns `false_value` if condition is false
+- Returns `undefined` if condition is `undefined`
+- Can be nested for multiple conditions
+
+#### Math Functions
+
+Math functions for numeric operations:
+
+```yaml
+# abs(x) - Absolute value
+expression: abs(balance) > 1000
+expression: abs(-42) == 42
+
+# ceil(x) - Round up to nearest integer
+expression: ceil(price * 1.08) <= budget
+expression: ceil(4.2) == 5
+
+# floor(x) - Round down to nearest integer
+expression: floor(rating) >= 4
+expression: floor(4.8) == 4
+
+# round(x) or round(x, digits) - Round to n decimal places
+expression: round(score) >= 95
+expression: round(price, 2) == 19.99
+expression: round(3.14159, 2) == 3.14
+
+# min(a, b, ...) - Minimum of multiple values
+expression: min(price1, price2, price3) < 100
+expression: min(age, min_age) >= 18
+
+# max(a, b, ...) - Maximum of multiple values
+expression: max(price1, price2, price3) <= budget
+expression: max(age, min_age) >= 21
+
+# pow(base, exponent) - Power/exponentiation
+expression: pow(base, 2) == 100
+expression: pow(value, 0.5) == 5  # square root
+expression: pow(2, -1) == 0.5     # inverse
+```
+
+**Handling undefined/null**:
+- Math operations on `undefined` return `undefined`
+- Math operations on `null` return `undefined`
+- `min()` and `max()` skip `undefined`/`null` values
+- If all values are `undefined`/`null`, returns `undefined`
+
+**Examples**:
+```yaml
+# Combining math functions
+expression: ceil(abs(value)) == 3
+expression: round(pow(value, 2), 1) == 6.2
+
+# Math with ternary operator
+expression: if(use_ceil, ceil(value), floor(value)) == 4
+expression: abs(if(positive, value, -value)) > 10
+
+# Complex calculations
+expression: floor(price * 1.1) + ceil(tax) <= budget
+expression: max(min(a, b), min(c, d)) == 15
+```
+
 ## Testing
 
 ### Built-in Tests

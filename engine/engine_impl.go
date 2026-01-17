@@ -20,6 +20,17 @@ import (
 	"time"
 )
 
+// preprocessExpression handles reserved Go keywords in expressions
+// by replacing them with valid identifiers before parsing.
+// This allows users to use intuitive function names like "if" without
+// conflicting with Go's syntax.
+func preprocessExpression(expr string) string {
+	// Replace "if(" with "ifFunc(" to avoid Go parser keyword conflict
+	// Use regex to only replace when followed by opening parenthesis
+	result := regexp.MustCompile(`\bif\s*\(`).ReplaceAllString(expr, "ifFunc(")
+	return result
+}
+
 type RepoInterface interface {
 	Register(f *InternalRule)
 }
@@ -620,8 +631,11 @@ func (repo *CompareCondRepo) genEvalForCompareCondition(
 
 func (repo *CompareCondRepo) genEvalForExprCondition(
 	exprCondition *condition.ExprCondition, scope *ForEachScope) condition.Operand {
+	// Preprocess expression to handle reserved keywords
+	expr := preprocessExpression(exprCondition.Expr)
+
 	// Convert the expression to an AST node tree
-	node, err := parser.ParseExpr(exprCondition.Expr)
+	node, err := parser.ParseExpr(expr)
 
 	if err != nil {
 		return condition.NewErrorOperand(repo.ctx.LogError(err))
@@ -1105,7 +1119,11 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 		case "forSome":
 			return negateIfTrue(repo.processForSomeFunc(n, scope), negate)
 		default:
-			return condition.NewErrorCondition(fmt.Errorf("unsupported function: %s", funcName))
+			// Functions that return operands (if, abs, min, max, etc.) cannot be used
+			// as standalone boolean conditions. They must be used in comparisons or arithmetic.
+			// For example: "if(premium, 100, 50) > threshold" is valid
+			// But: "if(premium, 100, 50)" as a standalone expression is invalid
+			return condition.NewErrorCondition(fmt.Errorf("function '%s' cannot be used as boolean condition - must be used in comparison or arithmetic expression", funcName))
 		}
 	case *ast.BinaryExpr:
 		if negate {
@@ -1477,6 +1495,396 @@ func (repo *CompareCondRepo) funcSeconds(n *ast.CallExpr, scope *ForEachScope) c
 		}, argOperand)
 }
 
+// Ternary/conditional operator: if(condition, true_value, false_value)
+func (repo *CompareCondRepo) funcIf(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("if() requires exactly three arguments: condition, true_value, false_value"))
+	}
+
+	condOperand := repo.evalAstNode(n.Args[0], scope)
+	if condOperand.GetKind() == condition.ErrorOperandKind {
+		return condOperand
+	}
+
+	trueOperand := repo.evalAstNode(n.Args[1], scope)
+	if trueOperand.GetKind() == condition.ErrorOperandKind {
+		return trueOperand
+	}
+
+	falseOperand := repo.evalAstNode(n.Args[2], scope)
+	if falseOperand.GetKind() == condition.ErrorOperandKind {
+		return falseOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			cond := condOperand.Evaluate(event, frames)
+
+			// Handle undefined condition - return undefined
+			if cond.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to boolean
+			boolCond := cond.Convert(condition.BooleanOperandKind)
+			if boolCond.GetKind() == condition.ErrorOperandKind {
+				return boolCond
+			}
+
+			if bool(boolCond.(condition.BooleanOperand)) {
+				return trueOperand.Evaluate(event, frames)
+			}
+			return falseOperand.Evaluate(event, frames)
+		}, condOperand, trueOperand, falseOperand)
+}
+
+// Math functions
+
+// abs(x) - Absolute value
+func (repo *CompareCondRepo) funcAbs(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("abs() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Handle undefined - math on undefined returns undefined
+			if arg.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if arg.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			val := float64(numericArg.(condition.FloatOperand))
+			return condition.NewFloatOperand(math.Abs(val))
+		}, argOperand, condition.StringOperand("abs"))
+}
+
+// ceil(x) - Ceiling (round up)
+func (repo *CompareCondRepo) funcCeil(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("ceil() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Handle undefined
+			if arg.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if arg.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			val := float64(numericArg.(condition.FloatOperand))
+			return condition.NewFloatOperand(math.Ceil(val))
+		}, argOperand, condition.StringOperand("ceil"))
+}
+
+// floor(x) - Floor (round down)
+func (repo *CompareCondRepo) funcFloor(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 1 {
+		return condition.NewErrorOperand(fmt.Errorf("floor() requires exactly one argument"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Handle undefined
+			if arg.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if arg.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			val := float64(numericArg.(condition.FloatOperand))
+			return condition.NewFloatOperand(math.Floor(val))
+		}, argOperand, condition.StringOperand("floor"))
+}
+
+// round(x) or round(x, digits) - Round to n decimal places
+func (repo *CompareCondRepo) funcRound(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) < 1 || len(n.Args) > 2 {
+		return condition.NewErrorOperand(fmt.Errorf("round() requires one or two arguments: round(x) or round(x, digits)"))
+	}
+
+	argOperand := repo.evalAstNode(n.Args[0], scope)
+	if argOperand.GetKind() == condition.ErrorOperandKind {
+		return argOperand
+	}
+
+	var digitsOperand condition.Operand
+	if len(n.Args) == 2 {
+		digitsOperand = repo.evalAstNode(n.Args[1], scope)
+		if digitsOperand.GetKind() == condition.ErrorOperandKind {
+			return digitsOperand
+		}
+	}
+
+	// Build args list for hash - only include non-nil operands
+	hashArgs := []condition.Operand{argOperand, condition.StringOperand("round")}
+	if digitsOperand != nil {
+		hashArgs = append(hashArgs, digitsOperand)
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			arg := argOperand.Evaluate(event, frames)
+
+			// Handle undefined
+			if arg.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if arg.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to numeric
+			numericArg := arg.Convert(condition.FloatOperandKind)
+			if numericArg.GetKind() == condition.ErrorOperandKind {
+				return numericArg
+			}
+
+			val := float64(numericArg.(condition.FloatOperand))
+
+			// Get digits (default to 0 for whole number rounding)
+			digits := int64(0)
+			if digitsOperand != nil {
+				digitsVal := digitsOperand.Evaluate(event, frames)
+				if digitsVal.GetKind() == condition.UndefinedOperandKind {
+					return condition.NewUndefinedOperand(nil)
+				}
+				digitsNumeric := digitsVal.Convert(condition.IntOperandKind)
+				if digitsNumeric.GetKind() == condition.ErrorOperandKind {
+					return digitsNumeric
+				}
+				digits = int64(digitsNumeric.(condition.IntOperand))
+			}
+
+			// Round to specified decimal places
+			shift := math.Pow(10, float64(digits))
+			rounded := math.Round(val*shift) / shift
+			return condition.NewFloatOperand(rounded)
+		}, hashArgs...)
+}
+
+// min(a, b, ...) - Minimum of multiple values
+func (repo *CompareCondRepo) funcMin(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) < 2 {
+		return condition.NewErrorOperand(fmt.Errorf("min() requires at least two arguments"))
+	}
+
+	argOperands := make([]condition.Operand, len(n.Args))
+	for i, arg := range n.Args {
+		argOperands[i] = repo.evalAstNode(arg, scope)
+		if argOperands[i].GetKind() == condition.ErrorOperandKind {
+			return argOperands[i]
+		}
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			minVal := math.Inf(1) // Positive infinity
+			hasValue := false
+
+			for _, argOp := range argOperands {
+				arg := argOp.Evaluate(event, frames)
+
+				// Handle undefined - skip this value
+				if arg.GetKind() == condition.UndefinedOperandKind {
+					continue
+				}
+
+				// Handle null - skip this value
+				if arg.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				// Convert to numeric
+				numericArg := arg.Convert(condition.FloatOperandKind)
+				if numericArg.GetKind() == condition.ErrorOperandKind {
+					return numericArg
+				}
+
+				val := float64(numericArg.(condition.FloatOperand))
+				if !hasValue || val < minVal {
+					minVal = val
+					hasValue = true
+				}
+			}
+
+			// If all values were undefined/null, return undefined
+			if !hasValue {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(minVal)
+		}, append(argOperands, condition.StringOperand("min"))...)
+}
+
+// max(a, b, ...) - Maximum of multiple values
+func (repo *CompareCondRepo) funcMax(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) < 2 {
+		return condition.NewErrorOperand(fmt.Errorf("max() requires at least two arguments"))
+	}
+
+	argOperands := make([]condition.Operand, len(n.Args))
+	for i, arg := range n.Args {
+		argOperands[i] = repo.evalAstNode(arg, scope)
+		if argOperands[i].GetKind() == condition.ErrorOperandKind {
+			return argOperands[i]
+		}
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			maxVal := math.Inf(-1) // Negative infinity
+			hasValue := false
+
+			for _, argOp := range argOperands {
+				arg := argOp.Evaluate(event, frames)
+
+				// Handle undefined - skip this value
+				if arg.GetKind() == condition.UndefinedOperandKind {
+					continue
+				}
+
+				// Handle null - skip this value
+				if arg.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				// Convert to numeric
+				numericArg := arg.Convert(condition.FloatOperandKind)
+				if numericArg.GetKind() == condition.ErrorOperandKind {
+					return numericArg
+				}
+
+				val := float64(numericArg.(condition.FloatOperand))
+				if !hasValue || val > maxVal {
+					maxVal = val
+					hasValue = true
+				}
+			}
+
+			// If all values were undefined/null, return undefined
+			if !hasValue {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(maxVal)
+		}, append(argOperands, condition.StringOperand("max"))...)
+}
+
+// pow(base, exponent) - Power/exponentiation
+func (repo *CompareCondRepo) funcPow(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 2 {
+		return condition.NewErrorOperand(fmt.Errorf("pow() requires exactly two arguments: base and exponent"))
+	}
+
+	baseOperand := repo.evalAstNode(n.Args[0], scope)
+	if baseOperand.GetKind() == condition.ErrorOperandKind {
+		return baseOperand
+	}
+
+	expOperand := repo.evalAstNode(n.Args[1], scope)
+	if expOperand.GetKind() == condition.ErrorOperandKind {
+		return expOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			base := baseOperand.Evaluate(event, frames)
+
+			// Handle undefined
+			if base.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if base.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			exp := expOperand.Evaluate(event, frames)
+
+			// Handle undefined
+			if exp.GetKind() == condition.UndefinedOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Handle null
+			if exp.GetKind() == condition.NullOperandKind {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			// Convert to numeric
+			numericBase := base.Convert(condition.FloatOperandKind)
+			if numericBase.GetKind() == condition.ErrorOperandKind {
+				return numericBase
+			}
+
+			numericExp := exp.Convert(condition.FloatOperandKind)
+			if numericExp.GetKind() == condition.ErrorOperandKind {
+				return numericExp
+			}
+
+			baseVal := float64(numericBase.(condition.FloatOperand))
+			expVal := float64(numericExp.(condition.FloatOperand))
+
+			result := math.Pow(baseVal, expVal)
+			return condition.NewFloatOperand(result)
+		}, baseOperand, expOperand, condition.StringOperand("pow"))
+}
+
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
 	if scope.Evaluator != nil {
@@ -1624,8 +2032,11 @@ func (repo *CompareCondRepo) processExprCondition(exprCondition *condition.ExprC
 		panic("must be called from root scope")
 	}
 
+	// Preprocess expression to handle reserved keywords
+	expr := preprocessExpression(exprCondition.Expr)
+
 	// Convert the expression to an AST node tree
-	node, err := parser.ParseExpr(exprCondition.Expr)
+	node, err := parser.ParseExpr(expr)
 
 	if err != nil {
 		return condition.NewErrorCondition(repo.ctx.LogError(err))
@@ -1766,6 +2177,22 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 					arg = arg.Convert(condition.FloatOperandKind)
 					return condition.NewFloatOperand(math.Sqrt(float64(arg.(condition.FloatOperand))))
 				}, argOperand, condition.StringOperand(funcName)) // funcName as hash seed to avoid cache collisions
+		case "ifFunc": // "if" is preprocessed to "ifFunc" to avoid Go keyword conflict
+			return repo.funcIf(n, scope)
+		case "abs":
+			return repo.funcAbs(n, scope)
+		case "ceil":
+			return repo.funcCeil(n, scope)
+		case "floor":
+			return repo.funcFloor(n, scope)
+		case "round":
+			return repo.funcRound(n, scope)
+		case "min":
+			return repo.funcMin(n, scope)
+		case "max":
+			return repo.funcMax(n, scope)
+		case "pow":
+			return repo.funcPow(n, scope)
 		default:
 			return condition.NewErrorOperand(fmt.Errorf("unsupported function: %s", funcName))
 		}

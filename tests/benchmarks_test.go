@@ -130,7 +130,7 @@ func BenchmarkLogicalOperatorsEval(b *testing.B) {
 	}
 }
 
-// Benchmark forAll condition
+// Benchmark all condition
 func BenchmarkForAllCondition(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRulesFromFile("../examples/rules/rule_for_each_1.yaml")
@@ -157,7 +157,7 @@ func BenchmarkForAllCondition(b *testing.B) {
 	}
 }
 
-// Benchmark forSome condition with large array
+// Benchmark any condition with large array
 func BenchmarkForSomeConditionLargeArray(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	_, err := repo.RegisterRulesFromFile("../examples/rules/rule_for_each_test2.yaml")
@@ -473,11 +473,11 @@ func BenchmarkConstantExpression(b *testing.B) {
 	}
 }
 
-// Benchmark forAll with empty array (Bug #3 fix)
+// Benchmark all with empty array (Bug #3 fix)
 func BenchmarkForAllEmptyArray(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: forall-empty}
-  expression: forAll("items", "item", item.value > 100)`
+  expression: all("items", "item", item.value > 100)`
 	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)
@@ -499,11 +499,11 @@ func BenchmarkForAllEmptyArray(b *testing.B) {
 	}
 }
 
-// Benchmark forAll with non-empty array (ensure no regression)
+// Benchmark all with non-empty array (ensure no regression)
 func BenchmarkForAllNonEmptyArray(b *testing.B) {
 	repo := engine.NewRuleEngineRepo()
 	rules := `- metadata: {id: forall-nonempty}
-  expression: forAll("items", "item", item.value > 50)`
+  expression: all("items", "item", item.value > 50)`
 	_, err := repo.LoadRulesFromString(rules, engine.WithValidate(true))
 	if err != nil {
 		b.Fatalf("failed LoadRulesFromString: %v", err)

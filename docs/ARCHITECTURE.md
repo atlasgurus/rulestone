@@ -108,7 +108,7 @@ Core expression processing and condition generation engine.
 - Convert AST to internal condition representation
 - Generate category evaluators for optimization
 - Implement common sub-expression elimination
-- Handle forAll/forSome scoping
+- Handle all/any scoping
 
 **Key Data Structures**:
 ```go
@@ -143,7 +143,7 @@ Event has attribute → Callback fires → Category evaluated
 But what if:
 - Attribute is missing from event (null checks: `field == null`)
 - Expression has no event dependencies (constants: `1 == 1`)
-- Container exists but is empty (quantifiers: `forAll("items", ...)` with `{items: []}`)
+- Container exists but is empty (quantifiers: `all("items", ...)` with `{items: []}`)
 
 **Solution**: `AlwaysEvaluateCategories` bypasses the callback mechanism.
 
@@ -451,7 +451,7 @@ Recursive traversal converting AST nodes to operands:
 ```
 AST Node Types:
 - BinaryExpr  → Comparison/Logical Operations
-- CallExpr    → Function Calls (forAll, hasValue, etc.)
+- CallExpr    → Function Calls (all, hasValue, etc.)
 - SelectorExpr → Nested Attribute Access (user.name)
 - IndexExpr   → Array Indexing (items[0])
 - Ident       → Variable References
@@ -482,14 +482,14 @@ Condition Tree:
        └─ InterfaceOperand ("active")
 ```
 
-### 4. forAll/forSome Handling
+### 4. all/any Handling
 
 **File**: `engine/engine_impl.go:599-758`
 
 Quantifiers over arrays require special scoping:
 
 ```go
-// Original: forAll(item, items, item.active == true)
+// Original: all(item, items, item.active == true)
 // Compiled:
 ForAllCondition {
     Element: "item",
@@ -510,12 +510,12 @@ ForAllCondition {
 1. Retrieve array from event
 2. For each element, bind to scope variable
 3. Evaluate condition in element scope
-4. forAll: all must be true
-5. forSome: at least one must be true
+4. all: all must be true
+5. any: at least one must be true
 
 **Design Insight: Vacuous Truth**:
-- `forAll` on an **empty array** returns `true` (vacuous truth principle)
-- `forAll` on a **missing array** returns `false` (rule doesn't apply)
+- `all` on an **empty array** returns `true` (vacuous truth principle)
+- `all` on a **missing array** returns `false` (rule doesn't apply)
 - This distinction is critical for correct semantics
 
 **Implementation Challenge**: Empty arrays are invisible in normal evaluation:
@@ -532,7 +532,7 @@ After MapObject():
 ```
 
 **Solution**:
-1. forAll added to `AlwaysEvaluateCategories` (runs unconditionally)
+1. all added to `AlwaysEvaluateCategories` (runs unconditionally)
 2. `ObjectAttributeMap.OriginalEvent` stores reference to unmapped event
 3. Evaluator falls back to original event to check array existence
 4. Can distinguish: missing (false) vs empty (true) vs non-empty (evaluate)
@@ -1041,7 +1041,7 @@ Savings: 7 evaluations instead of 10 (30% reduction)
 **When Needed**:
 - ✅ Null checks (`field == null`)
 - ✅ Constant expressions (`1 == 1`)
-- ✅ Quantifiers on collections (`forAll`, `forSome`)
+- ✅ Quantifiers on collections (`all`, `any`)
 - ❌ Regular comparisons (`field > 10`)
 
 **Check**: Does the rule need to evaluate when the attribute is missing?
@@ -1180,7 +1180,7 @@ for _, rule := range rules {
 }
 ```
 
-**Expected**: `forAll`/`forSome` with 10-100 elements is fine.
+**Expected**: `all`/`any` with 10-100 elements is fine.
 
 **Red Flag**: 1000+ elements will be slow. Consider restructuring data or rules.
 
@@ -1208,8 +1208,8 @@ for _, rule := range rules {
 - Complex expression eval: ~3.2 μs/op
 - Null check: ~500 ns/op
 - Constant expression: ~454 ns/op
-- forAll condition: ~2.5 μs/op
-- forAll empty array: ~1.3 μs/op
+- all condition: ~2.5 μs/op
+- all empty array: ~1.3 μs/op
 
 **Key Metrics**:
 - AlwaysEvaluateCategories adds ~0.5 μs overhead (negligible)
@@ -1235,6 +1235,6 @@ for _, rule := range rules {
 - **AttrKeys**: Attribute paths that a category depends on
 - **Address**: Integer array representing path to a value in nested structure
 - **FullAddress**: String representation of address with nesting information
-- **Frame**: Current context in nested evaluation (used in forAll/forSome)
+- **Frame**: Current context in nested evaluation (used in all/any)
 - **Vacuous Truth**: Logic principle where "all elements of empty set satisfy P" is true
 - **AlwaysEvaluateCategories**: Categories that must run even when their attributes are missing from the event

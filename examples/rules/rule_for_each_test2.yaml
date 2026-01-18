@@ -1,6 +1,6 @@
-- expression: forSome("members[0].children", "child",
-              forSome("child.children", "grand_child1",
-                forSome("child.children", "grand_child2",
+- expression: any("members[0].children", "child",
+              any("child.children", "grand_child1",
+                any("child.children", "grand_child2",
                   grand_child1.age != grand_child2.age &&
                   grand_child1.name == grand_child2.name &&
                   grand_child1.age == 100)))

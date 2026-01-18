@@ -177,50 +177,50 @@
 
 - metadata:
     id: forsome-null-array
-    description: Test forSome with null array
-  expression: forSome("forsome_items", "forsome_item", forsome_item.forsome_value > 0)
+    description: Test any with null array
+  expression: any("forsome_items", "forsome_item", forsome_item.forsome_value > 0)
   tests:
     - name: null array field
       event:
         forsome_other: data
       expect: false
-      description: Missing forsome_items array (treated as null) should make forSome false
+      description: Missing forsome_items array (treated as null) should make any false
     - name: explicit null array
       event:
         forsome_items: null
       expect: false
-      description: Explicit null forsome_items array should make forSome false
+      description: Explicit null forsome_items array should make any false
     - name: empty array
       event:
         forsome_items: []
       expect: false
-      description: Empty array should make forSome false
+      description: Empty array should make any false
 
 - metadata:
     id: forall-null-array
-    description: Test forAll with null array
-  expression: forAll("forall_items", "forall_item", forall_item.forall_value < 100)
+    description: Test all with null array
+  expression: all("forall_items", "forall_item", forall_item.forall_value < 100)
   tests:
     - name: null array field
       event:
         forall_other: data
       expect: false
-      description: Missing forall_items array should make forAll false (rule doesn't apply to missing arrays)
+      description: Missing forall_items array should make all false (rule doesn't apply to missing arrays)
     - name: explicit null array
       event:
         forall_items: null
       expect: false
-      description: Explicit null forall_items array should make forAll false (rule doesn't apply to null arrays)
+      description: Explicit null forall_items array should make all false (rule doesn't apply to null arrays)
     - name: empty array
       event:
         forall_items: []
       expect: true
-      description: Empty array - forAll returns true (vacuous truth)
+      description: Empty array - all returns true (vacuous truth)
 
 - metadata:
     id: forsome-with-null-elements
-    description: Test forSome with array containing null elements
-  expression: forSome("forsome_elem_items", "forsome_elem_item", forsome_elem_item.forsome_elem_value > 10)
+    description: Test any with array containing null elements
+  expression: any("forsome_elem_items", "forsome_elem_item", forsome_elem_item.forsome_elem_value > 10)
   tests:
     - name: array with null elements
       event:
@@ -239,8 +239,8 @@
 
 - metadata:
     id: forall-with-null-elements
-    description: Test forAll with array containing null elements
-  expression: forAll("forall_elem_items", "forall_elem_item", forall_elem_item.forall_elem_value != 0)
+    description: Test all with array containing null elements
+  expression: all("forall_elem_items", "forall_elem_item", forall_elem_item.forall_elem_value != 0)
   tests:
     - name: array with null elements
       event:
@@ -248,7 +248,7 @@
           - forall_elem_value: null
           - forall_elem_value: 20
       expect: true
-      description: ForAll with one element passing - array has null (undefined) and 20, 20 != 0 is true, so forAll returns true
+      description: ForAll with one element passing - array has null (undefined) and 20, 20 != 0 is true, so all returns true
     - name: array with missing fields
       event:
         forall_elem_items:
@@ -393,14 +393,14 @@
 - metadata:
     id: quantifier-with-null-context
     description: Test quantifier with null in context
-  expression: forSome("orders", "order", order.amount > total * 0.5)
+  expression: any("orders", "order", order.amount > total * 0.5)
   tests:
     - name: quantifier with null context
       event:
         orders:
           - amount: 100
       expect: false
-      description: forSome with null 'total' in condition should be false
+      description: any with null 'total' in condition should be false
 
 # === Null Handling in Type Coercion ===
 

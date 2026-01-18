@@ -138,7 +138,7 @@
     id: nested-array-quantifier
     description: Test quantifier with nested conditions
     tags: [quantifier, array, complex]
-  expression: forAll("items", "item", item.price > 0 && item.quantity > 0)
+  expression: all("items", "item", item.price > 0 && item.quantity > 0)
   tests:
     - name: all items valid
       event:
@@ -174,7 +174,7 @@
       event:
         items: []
       expect: true
-      description: Empty array - forAll returns true (vacuous truth)
+      description: Empty array - all returns true (vacuous truth)
 
 - metadata:
     id: null-handling

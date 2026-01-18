@@ -1114,9 +1114,9 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 			return negateIfTrue(repo.processIsEqualToAny(n, scope), negate)
 		case "containsAny":
 			return negateIfTrue(repo.processContains(n, scope), negate)
-		case "forAll", "all":
+		case "all":
 			return negateIfTrue(repo.processForAllFunc(n, scope), negate)
-		case "forSome", "any":
+		case "any":
 			return negateIfTrue(repo.processForSomeFunc(n, scope), negate)
 		default:
 			// Functions that return operands (if, abs, min, max, etc.) cannot be used
@@ -2620,9 +2620,9 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return funcIsEqualToAnyWithDate(repo, n, scope)
 		case "isEqualToAny":
 			return repo.funcIsEqualToAny(n, scope)
-		case "forAll", "all":
+		case "all":
 			return repo.funcForAll(n, scope)
-		case "forSome", "any":
+		case "any":
 			return repo.funcForSome(n, scope)
 		case "count":
 			return repo.funcCount(n, scope)

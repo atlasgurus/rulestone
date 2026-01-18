@@ -1,7 +1,7 @@
-- expression: forAll(
+- expression: all(
     "members", 
     "member", 
-    forSome(
+    any(
       "member.children", 
       "child", 
       member.age == 31 && member.name == child.name))

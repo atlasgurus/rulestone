@@ -153,7 +153,7 @@
 - metadata:
     id: length-combined-conditions
     description: Test length() combined with other conditions
-  expression: length("items") > 0 && forAll("items", "item", item.value > 10)
+  expression: length("items") > 0 && all("items", "item", item.value > 10)
   tests:
     - name: non-empty array all elements satisfy
       event:

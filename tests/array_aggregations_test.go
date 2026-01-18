@@ -243,7 +243,7 @@ func TestMaxOfFunction(t *testing.T) {
 }
 
 func TestAllAnyAliases(t *testing.T) {
-	t.Run("all() as alias for forAll", func(t *testing.T) {
+	t.Run("all() as alias for all", func(t *testing.T) {
 		repo := engine.NewRuleEngineRepo()
 		rule := `- metadata: {id: 1}
   expression: all("items", "item", item.valid == true)`
@@ -268,7 +268,7 @@ func TestAllAnyAliases(t *testing.T) {
 		require.Contains(t, matches, condition.RuleIdType(0), "all valid")
 	})
 
-	t.Run("any() as alias for forSome", func(t *testing.T) {
+	t.Run("any() as alias for any", func(t *testing.T) {
 		repo := engine.NewRuleEngineRepo()
 		rule := `- metadata: {id: 1}
   expression: any("items", "item", item.shipped == true)`
@@ -294,10 +294,10 @@ func TestAllAnyAliases(t *testing.T) {
 		require.Contains(t, matches, condition.RuleIdType(0), "any shipped")
 	})
 
-	t.Run("forAll still works", func(t *testing.T) {
+	t.Run("all still works", func(t *testing.T) {
 		repo := engine.NewRuleEngineRepo()
 		rule := `- metadata: {id: 1}
-  expression: forAll("items", "item", item.valid == true)`
+  expression: all("items", "item", item.valid == true)`
 
 		result, err := repo.LoadRulesFromString(rule,
 			engine.WithValidate(true),
@@ -307,10 +307,10 @@ func TestAllAnyAliases(t *testing.T) {
 		require.True(t, result.ValidationOK)
 	})
 
-	t.Run("forSome still works", func(t *testing.T) {
+	t.Run("any still works", func(t *testing.T) {
 		repo := engine.NewRuleEngineRepo()
 		rule := `- metadata: {id: 1}
-  expression: forSome("items", "item", item.active)`
+  expression: any("items", "item", item.active)`
 
 		result, err := repo.LoadRulesFromString(rule,
 			engine.WithValidate(true),

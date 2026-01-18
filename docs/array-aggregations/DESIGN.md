@@ -23,7 +23,7 @@ expression: count("users", "user", user.age >= 18) >= 10
 expression: count("orders", "order", order.status == "pending" && order.total > 100) > 0
 ```
 
-**Similar to**: forSome, but returns count instead of boolean
+**Similar to**: any, but returns count instead of boolean
 
 ---
 
@@ -91,20 +91,20 @@ expression: max("items", "item", if(item.category == "premium", item.price, 0)) 
 ### Rename Quantifiers (Breaking Change)
 
 **Current** → **Proposed**:
-- `forAll()` → `all()` (more standard, shorter)
-- `forSome()` → `any()` (matches SQL, Python, JavaScript)
+- `all()` → `all()` (more standard, shorter)
+- `any()` → `any()` (matches SQL, Python, JavaScript)
 
 **Rationale**:
 - `all()` and `any()` are universal (Python, SQL, JavaScript)
 - Shorter, clearer
-- "forAll" sounds verbose
+- "all" sounds verbose
 - Industry standard naming
 
 **Migration**:
 ```yaml
 # Old
-expression: forAll("items", "item", item.valid == true)
-expression: forSome("items", "item", item.shipped == true)
+expression: all("items", "item", item.valid == true)
+expression: any("items", "item", item.shipped == true)
 
 # New
 expression: all("items", "item", item.valid == true)
@@ -112,14 +112,14 @@ expression: any("items", "item", item.shipped == true)
 ```
 
 **Keep as aliases** for backward compatibility:
-- forAll → calls all()
-- forSome → calls any()
+- all → calls all()
+- any → calls any()
 
 ---
 
 ## Implementation Approach
 
-### Pattern: All Follow forAll/forSome
+### Pattern: All Follow all/any
 
 Each function:
 1. Parse arguments (array path, element name, expression/condition)
@@ -128,7 +128,7 @@ Each function:
 4. Evaluate expression/condition per element
 5. Aggregate result
 
-**No iterators, no intermediate arrays** - just direct iteration like forAll/forSome.
+**No iterators, no intermediate arrays** - just direct iteration like all/any.
 
 ---
 
@@ -136,10 +136,10 @@ Each function:
 
 ```go
 func (repo *CompareCondRepo) funcCount(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
-    // Parse args (same as forAll)
+    // Parse args (same as all)
     arrayPath, elementName, condition := parseArrayIterationArgs(n)
 
-    // Setup scope (same as forAll)
+    // Setup scope (same as all)
     arrayAddress, newScope := setupIterationScope(arrayPath, elementName, scope)
 
     // Evaluate condition in scope
@@ -148,7 +148,7 @@ func (repo *CompareCondRepo) funcCount(n *ast.CallExpr, scope *ForEachScope) con
     return NewExprOperand(func(event, frames) {
         count := 0
 
-        // Iterate like forAll
+        // Iterate like all
         for i := 0; i < numElements; i++ {
             elem := getElement(i)
             frames[nestingLevel] = elem
@@ -166,7 +166,7 @@ func (repo *CompareCondRepo) funcCount(n *ast.CallExpr, scope *ForEachScope) con
 }
 ```
 
-**Identical pattern to forAll** - just counts instead of checking all.
+**Identical pattern to all** - just counts instead of checking all.
 
 ---
 
@@ -238,8 +238,8 @@ avg("users", "user", if(user.age >= 18, user.score, undefined))
 
 ### Functions to Rename
 
-6. **`forAll → all`** (alias forAll for compatibility)
-7. **`forSome → any`** (alias forSome for compatibility)
+6. **`all → all`** (alias all for compatibility)
+7. **`any → any`** (alias any for compatibility)
 
 **Total new code**: ~240 lines
 **Total test code**: ~300 lines
@@ -250,7 +250,7 @@ avg("users", "user", if(user.age >= 18, user.score, undefined))
 
 1. **Simpler**: No IteratorOperand type needed
 2. **Clearer**: Intent is obvious from function name
-3. **Consistent**: All follow same pattern as forAll/forSome
+3. **Consistent**: All follow same pattern as all/any
 4. **No map chaining complexity**: Avoided entirely
 5. **Smaller**: ~240 lines vs ~420 lines
 6. **Easier to maintain**: Standard aggregation pattern
@@ -292,7 +292,7 @@ expression: avg("sessions", "s", s.duration_seconds) < 300
 1. count(array, elem, condition)
 2. min(array, elem, expr) - array form
 3. max(array, elem, expr) - array form
-4. Rename forAll → all, forSome → any (with backward compat aliases)
+4. Rename all → all, any → any (with backward compat aliases)
 
 **Estimated**: 1 day vs 2-3 more days for filter/map debugging
 

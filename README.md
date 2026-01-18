@@ -502,14 +502,12 @@ Check if all or any elements satisfy a condition:
 ```yaml
 # All elements must satisfy condition
 expression: all("items", "item", item.price > 0)
-expression: forAll("items", "item", item.valid == true)  # Legacy name (still works)
+expression: all("items", "item", item.valid == true)
 
 # At least one element must satisfy condition
 expression: any("items", "item", item.status == "shipped")
-expression: forSome("items", "item", item.active == true)  # Legacy name (still works)
+expression: any("orders", "order", order.status == "pending")
 ```
-
-**Note**: `all()` and `any()` are the preferred names (matching Python, SQL, JavaScript). `forAll()` and `forSome()` still work for backward compatibility.
 
 #### Array Aggregation Functions
 
@@ -551,7 +549,7 @@ expression: maxOf("reviews", "r", r.stars) <= 5
 - Return `undefined` for missing arrays
 - Skip `undefined` and `null` values in calculations
 - Can use `if()` for inline filtering
-- Follow the same pattern as `forAll()` / `forSome()`
+- Follow the same pattern as `all()` / `any()`
 
 #### Conditional/Ternary Operator
 

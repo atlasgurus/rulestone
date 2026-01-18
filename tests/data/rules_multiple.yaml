@@ -464,8 +464,8 @@
 
 - metadata:
     id: very-complex
-    description: Complex with quantifier forSome
-  expression: forSome("veryItems", "item", item.value > veryThreshold && item.status == "active") && veryTotal > 1000
+    description: Complex with quantifier any
+  expression: any("veryItems", "item", item.value > veryThreshold && item.status == "active") && veryTotal > 1000
   tests:
     - name: matches when conditions met
       event:
@@ -510,7 +510,7 @@
 - metadata:
     id: ultra-complex
     description: Ultra complex with multiple operations and quantifiers
-  expression: ((ultraA + ultraB * ultraC) / ultraD > 10 || ultraE == "special") && forAll("ultraUsers", "user", user.age >= 18) && regexpMatch("^[A-Z]", ultraName)
+  expression: ((ultraA + ultraB * ultraC) / ultraD > 10 || ultraE == "special") && all("ultraUsers", "user", user.age >= 18) && regexpMatch("^[A-Z]", ultraName)
   tests:
     - name: may match complex scenario
       event:
@@ -643,7 +643,7 @@
 - metadata:
     id: all-valid
     description: All items are valid
-  expression: forAll("validItems", "item", item.valid == true)
+  expression: all("validItems", "item", item.valid == true)
   tests:
     - name: matches when all items valid and in stock
       event:
@@ -682,7 +682,7 @@
 - metadata:
     id: some-expensive
     description: Some items are expensive (price > 100)
-  expression: forSome("expensiveItems", "item", item.price > 100)
+  expression: any("expensiveItems", "item", item.price > 100)
   tests:
     - name: matches when items have prices over 100
       event:
@@ -721,7 +721,7 @@
 - metadata:
     id: all-instock
     description: All items are in stock
-  expression: forAll("instockItems", "item", item.inStock == true)
+  expression: all("instockItems", "item", item.inStock == true)
   tests:
     - name: matches when all items in stock
       event:
@@ -752,7 +752,7 @@
 - metadata:
     id: some-outofstock
     description: Some items are out of stock
-  expression: forSome("outofstockItems", "item", item.inStock == false)
+  expression: any("outofstockItems", "item", item.inStock == false)
   tests:
     - name: does not match when all items in stock
       event:

@@ -337,39 +337,39 @@ func TestErrorValidation_InvalidQuantifiers(t *testing.T) {
 		description   string
 	}{
 		{
-			name:          "forAll without arguments",
-			expression:    `forAll()`,
+			name:          "all without arguments",
+			expression:    `all()`,
 			shouldError:   true,
 			errorContains: "",
-			description:   "forAll with no arguments",
+			description:   "all with no arguments",
 		},
 		{
-			name:          "forAll with one argument",
-			expression:    `forAll("array")`,
+			name:          "all with one argument",
+			expression:    `all("array")`,
 			shouldError:   true,
 			errorContains: "",
-			description:   "forAll with insufficient arguments",
+			description:   "all with insufficient arguments",
 		},
 		{
-			name:          "forAll with two arguments",
-			expression:    `forAll("array", "item")`,
+			name:          "all with two arguments",
+			expression:    `all("array", "item")`,
 			shouldError:   true,
 			errorContains: "",
-			description:   "forAll missing condition argument",
+			description:   "all missing condition argument",
 		},
 		{
-			name:          "forSome without arguments",
-			expression:    `forSome()`,
+			name:          "any without arguments",
+			expression:    `any()`,
 			shouldError:   true,
 			errorContains: "",
-			description:   "forSome with no arguments",
+			description:   "any with no arguments",
 		},
 		{
-			name:          "forSome with insufficient arguments",
-			expression:    `forSome("array", "item")`,
+			name:          "any with insufficient arguments",
+			expression:    `any("array", "item")`,
 			shouldError:   true,
 			errorContains: "",
-			description:   "forSome missing condition argument",
+			description:   "any missing condition argument",
 		},
 	}
 
@@ -612,12 +612,12 @@ func TestErrorValidation_StackOverflow(t *testing.T) {
 
 // TestErrorValidation_QuantifierFrameLimit tests the 20-level frame stack limit
 func TestErrorValidation_QuantifierFrameLimit(t *testing.T) {
-	// Build nested forAll up to and beyond the 20 level limit
+	// Build nested all up to and beyond the 20 level limit
 	// This tests the documented frame stack limit
 	rules := `
 - metadata:
     id: deep-quantifier-nesting
-  expression: forAll("l1", "i1", forAll("l2", "i2", forAll("l3", "i3", forAll("l4", "i4", forAll("l5", "i5", i5.val == 1)))))
+  expression: all("l1", "i1", all("l2", "i2", all("l3", "i3", all("l4", "i4", all("l5", "i5", i5.val == 1)))))
 `
 
 	ruleFile := createErrorValidationTestRuleFile(t, rules)

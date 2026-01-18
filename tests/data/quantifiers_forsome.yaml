@@ -1,13 +1,13 @@
 - metadata:
     id: forsome-empty
-    description: Test forSome with empty arrays (should return false)
-  expression: forSome("items", "item", item.value > 100)
+    description: Test any with empty arrays (should return false)
+  expression: any("items", "item", item.value > 100)
   tests:
     - name: empty array
       event:
         items: []
       expect: false
-      description: Empty array - forSome should return false (no elements to match)
+      description: Empty array - any should return false (no elements to match)
     - name: missing array field
       event:
         other: "data"
@@ -16,8 +16,8 @@
 
 - metadata:
     id: forsome-single
-    description: Test forSome with single-element arrays
-  expression: forSome("items", "item", item.value > 50)
+    description: Test any with single-element arrays
+  expression: any("items", "item", item.value > 50)
   tests:
     - name: single element matches
       event:
@@ -34,8 +34,8 @@
 
 - metadata:
     id: forsome-multi
-    description: Test forSome with multiple elements
-  expression: forSome("items", "item", item.value > 100)
+    description: Test any with multiple elements
+  expression: any("items", "item", item.value > 100)
   tests:
     - name: first element matches
       event:
@@ -44,7 +44,7 @@
           - value: 50
           - value: 60
       expect: true
-      description: First element > 100, forSome should match (and possibly short-circuit)
+      description: First element > 100, any should match (and possibly short-circuit)
     - name: middle element matches
       event:
         items:
@@ -52,7 +52,7 @@
           - value: 150
           - value: 60
       expect: true
-      description: Middle element > 100, forSome should match
+      description: Middle element > 100, any should match
     - name: last element matches
       event:
         items:
@@ -60,7 +60,7 @@
           - value: 60
           - value: 150
       expect: true
-      description: Last element > 100, forSome should match
+      description: Last element > 100, any should match
     - name: multiple elements match
       event:
         items:
@@ -68,7 +68,7 @@
           - value: 200
           - value: 250
       expect: true
-      description: Multiple elements > 100, forSome should match
+      description: Multiple elements > 100, any should match
     - name: no elements match
       event:
         items:
@@ -76,12 +76,12 @@
           - value: 60
           - value: 70
       expect: false
-      description: No elements > 100, forSome should not match
+      description: No elements > 100, any should not match
 
 - metadata:
     id: forsome-and
-    description: Test forSome with AND condition
-  expression: forSome("items", "item", item.price > 100 && item.available == 1)
+    description: Test any with AND condition
+  expression: any("items", "item", item.price > 100 && item.available == 1)
   tests:
     - name: one item matches both conditions
       event:
@@ -104,8 +104,8 @@
 
 - metadata:
     id: forsome-or
-    description: Test forSome with OR condition
-  expression: forSome("items", "item", item.category == "premium" || item.price > 500)
+    description: Test any with OR condition
+  expression: any("items", "item", item.category == "premium" || item.price > 500)
   tests:
     - name: matches category
       event:
@@ -137,8 +137,8 @@
 
 - metadata:
     id: forsome-not
-    description: Test forSome with NOT condition
-  expression: forSome("items", "item", !(item.discontinued == 1))
+    description: Test any with NOT condition
+  expression: any("items", "item", !(item.discontinued == 1))
   tests:
     - name: at least one not discontinued
       event:
@@ -157,8 +157,8 @@
 
 - metadata:
     id: forsome-arithmetic
-    description: Test forSome with arithmetic in conditions
-  expression: forSome("items", "item", item.price * item.quantity > 1000)
+    description: Test any with arithmetic in conditions
+  expression: any("items", "item", item.price * item.quantity > 1000)
   tests:
     - name: at least one total over limit
       event:
@@ -181,8 +181,8 @@
 
 - metadata:
     id: nested-forsome
-    description: Test nested forSome quantifiers
-  expression: forSome("orders", "order", forSome("order.items", "item", item.price > 100))
+    description: Test nested any quantifiers
+  expression: any("orders", "order", any("order.items", "item", item.price > 100))
   tests:
     - name: one order has expensive item
       event:
@@ -208,8 +208,8 @@
 
 - metadata:
     id: forsome-forall
-    description: Test forSome with nested forAll quantifier
-  expression: forSome("orders", "order", forAll("order.items", "item", item.validated == 1))
+    description: Test any with nested all quantifier
+  expression: any("orders", "order", all("order.items", "item", item.validated == 1))
   tests:
     - name: one order all validated
       event:
@@ -235,8 +235,8 @@
 
 - metadata:
     id: forsome-null
-    description: Test forSome with null/missing fields
-  expression: forSome("items", "item", item.value > 50)
+    description: Test any with null/missing fields
+  expression: any("items", "item", item.value > 50)
   tests:
     - name: one null one matching
       event:
@@ -262,8 +262,8 @@
 
 - metadata:
     id: forsome-large
-    description: Test forSome with large arrays for short-circuit behavior
-  expression: forSome("items", "item", item.value > 500)
+    description: Test any with large arrays for short-circuit behavior
+  expression: any("items", "item", item.value > 500)
   tests:
     - name: large array first matches
       event:

@@ -1,2 +1,2 @@
-- expression: forAll("members", "member",
-                forSome("member.children", "child", member.age == 31 && member.name == child.name))
+- expression: all("members", "member",
+                any("member.children", "child", member.age == 31 && member.name == child.name))

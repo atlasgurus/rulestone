@@ -35,7 +35,7 @@ func TestEngineRuleRegistration(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "forAll rule",
+			name:        "all rule",
 			ruleFile:    "../examples/rules/rule_for_each_1.yaml",
 			expectRules: 1,
 			expectError: false,
@@ -159,7 +159,7 @@ func TestEngineExpressionEvaluation(t *testing.T) {
 	}
 }
 
-// TestEngineForEach tests forAll and forSome operations
+// TestEngineForEach tests all and any operations
 func TestEngineForEach(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -168,19 +168,19 @@ func TestEngineForEach(t *testing.T) {
 		expectMatches int
 	}{
 		{
-			name:          "forAll on array",
+			name:          "all on array",
 			ruleFile:      "../examples/rules/rule_for_each_1.yaml",
 			dataFile:      "../examples/data/data_for_each_test1.yaml",
 			expectMatches: 1,
 		},
 		{
-			name:          "forSome with complex condition",
+			name:          "any with complex condition",
 			ruleFile:      "../examples/rules/rule_for_each_test2.yaml",
 			dataFile:      "../examples/data/data_for_each_test2.json",
 			expectMatches: 1,
 		},
 		{
-			name:          "forAll with optimization",
+			name:          "all with optimization",
 			ruleFile:      "../examples/rules/rule_for_each_test3.yaml",
 			dataFile:      "../examples/data/data_for_each_test3.json",
 			expectMatches: 1,
@@ -446,7 +446,7 @@ func TestEngineArrayOperations(t *testing.T) {
 			dataFile: "../examples/data/data_expression_test5.json",
 		},
 		{
-			name:     "forAll on empty array",
+			name:     "all on empty array",
 			ruleFile: "../examples/rules/rule_for_each_1.yaml",
 			dataFile: "../examples/data/data_for_each_test1.yaml",
 		},

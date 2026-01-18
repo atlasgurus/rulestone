@@ -363,10 +363,10 @@
 # Arithmetic in Quantifiers
 - metadata:
     id: arith-forsome
-    description: Arithmetic operations inside forSome quantifier
-  expression: forSome("items", "item", item.price * item.quantity > 100)
+    description: Arithmetic operations inside any quantifier
+  expression: any("items", "item", item.price * item.quantity > 100)
   tests:
-    - name: arithmetic in forSome
+    - name: arithmetic in any
       event:
         items:
           - price: 10
@@ -377,10 +377,10 @@
 
 - metadata:
     id: arith-forall
-    description: Arithmetic operations inside forAll quantifier
-  expression: forAll("items", "item", item.price + item.tax < 100)
+    description: Arithmetic operations inside all quantifier
+  expression: all("items", "item", item.price + item.tax < 100)
   tests:
-    - name: arithmetic in forAll
+    - name: arithmetic in all
       event:
         items:
           - price: 50
@@ -392,7 +392,7 @@
 - metadata:
     id: complex-arith-quantifier
     description: Complex arithmetic expression in quantifier
-  expression: forSome("items", "item", (item.price - item.discount) * item.quantity > 50)
+  expression: any("items", "item", (item.price - item.discount) * item.quantity > 50)
   tests:
     - name: complex arithmetic in quantifier
       event:

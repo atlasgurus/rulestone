@@ -1114,9 +1114,9 @@ func (repo *CompareCondRepo) processCondNode(node ast.Node, negate bool, scope *
 			return negateIfTrue(repo.processIsEqualToAny(n, scope), negate)
 		case "containsAny":
 			return negateIfTrue(repo.processContains(n, scope), negate)
-		case "forAll":
+		case "all":
 			return negateIfTrue(repo.processForAllFunc(n, scope), negate)
-		case "forSome":
+		case "any":
 			return negateIfTrue(repo.processForSomeFunc(n, scope), negate)
 		default:
 			// Functions that return operands (if, abs, min, max, etc.) cannot be used
@@ -1378,6 +1378,277 @@ func (repo *CompareCondRepo) funcLength(n *ast.CallExpr, scope *ForEachScope) co
 			}
 			return condition.NewIntOperand(int64(numElements))
 		}, pathOperand) // pathOperand in Args for proper hash
+}
+
+// count(array_path, element_name, condition) - Count elements matching condition
+func (repo *CompareCondRepo) funcCount(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("count() requires 3 arguments: array_path, element_name, condition"))
+	}
+
+	// Parse arguments (same as forSome)
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("count() first argument must be string path"))
+	}
+	arrayPath := string(pathOperand.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("count() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	// Get condition expression
+	condExpr := n.Args[2]
+
+	// Setup array iteration (like forSome)
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	// Create scope for iteration
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", scope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: scope.NestingLevel + 1,
+		ParentScope:  scope,
+		AttrDictRec:  newDictRec,
+	}
+
+	// Evaluate condition in new scope
+	condOperand := repo.evalAstNode(condExpr, newScope)
+	if condOperand.GetKind() == condition.ErrorOperandKind {
+		return condOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				// Array missing - return undefined
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			count := 0
+			parentsFrame := frames[arrayAddress.ParentParameterIndex]
+			currentAddressLen := len(arrayAddress.Address)
+			currentAddress := make([]int, currentAddressLen+1)
+			copy(currentAddress, arrayAddress.Address)
+
+			for i := 0; i < numElements; i++ {
+				currentAddress[currentAddressLen] = i
+				newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+				if newFrame == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = newFrame
+
+				result := condOperand.Evaluate(event, frames)
+
+				// Count if true
+				boolResult := result.Convert(condition.BooleanOperandKind)
+				if boolResult.GetKind() == condition.BooleanOperandKind &&
+					bool(boolResult.(condition.BooleanOperand)) {
+					count++
+				}
+			}
+
+			return condition.NewIntOperand(int64(count))
+		}, pathOperand, elemOperand)
+}
+
+// sum(array_path, element_name, expression) - Sum values
+func (repo *CompareCondRepo) funcSum(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("sum() requires 3 arguments: array_path, element_name, expression"))
+	}
+
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("sum() first argument must be string path"))
+	}
+	arrayPath := string(pathOperand.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("sum() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	exprAst := n.Args[2]
+
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", scope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: scope.NestingLevel + 1,
+		ParentScope:  scope,
+		AttrDictRec:  newDictRec,
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			sum := 0.0
+			parentsFrame := frames[arrayAddress.ParentParameterIndex]
+			currentAddressLen := len(arrayAddress.Address)
+			currentAddress := make([]int, currentAddressLen+1)
+			copy(currentAddress, arrayAddress.Address)
+
+			for i := 0; i < numElements; i++ {
+				currentAddress[currentAddressLen] = i
+				newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+				if newFrame == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = newFrame
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+				}
+			}
+
+			return condition.NewFloatOperand(sum)
+		}, pathOperand, elemOperand)
+}
+
+// avg(array_path, element_name, expression) - Average values
+func (repo *CompareCondRepo) funcAvg(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("avg() requires 3 arguments: array_path, element_name, expression"))
+	}
+
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("avg() first argument must be string path"))
+	}
+	arrayPath := string(pathOperand.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("avg() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	exprAst := n.Args[2]
+
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", scope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: scope.NestingLevel + 1,
+		ParentScope:  scope,
+		AttrDictRec:  newDictRec,
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			if numElements == 0 {
+				return condition.NewUndefinedOperand(nil) // Can't average empty
+			}
+
+			sum := 0.0
+			count := 0
+			parentsFrame := frames[arrayAddress.ParentParameterIndex]
+			currentAddressLen := len(arrayAddress.Address)
+			currentAddress := make([]int, currentAddressLen+1)
+			copy(currentAddress, arrayAddress.Address)
+
+			for i := 0; i < numElements; i++ {
+				currentAddress[currentAddressLen] = i
+				newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+				if newFrame == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = newFrame
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					sum += float64(numeric.(condition.FloatOperand))
+					count++
+				}
+			}
+
+			if count == 0 {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(sum / float64(count))
+		}, pathOperand, elemOperand)
 }
 
 // Duration functions for time arithmetic
@@ -1885,6 +2156,206 @@ func (repo *CompareCondRepo) funcPow(n *ast.CallExpr, scope *ForEachScope) condi
 		}, baseOperand, expOperand, condition.StringOperand("pow"))
 }
 
+// Array aggregation functions (iterate array and aggregate values)
+
+// minOf(array_path, element_name, expression) - Minimum value from array
+func (repo *CompareCondRepo) funcMinOf(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("minOf() requires 3 arguments: array_path, element_name, expression"))
+	}
+
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("minOf() first argument must be string path"))
+	}
+	arrayPath := string(pathOperand.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("minOf() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	exprAst := n.Args[2]
+
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", scope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: scope.NestingLevel + 1,
+		ParentScope:  scope,
+		AttrDictRec:  newDictRec,
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			if numElements == 0 {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			minVal := math.Inf(1)
+			hasValue := false
+			parentsFrame := frames[arrayAddress.ParentParameterIndex]
+			currentAddressLen := len(arrayAddress.Address)
+			currentAddress := make([]int, currentAddressLen+1)
+			copy(currentAddress, arrayAddress.Address)
+
+			for i := 0; i < numElements; i++ {
+				currentAddress[currentAddressLen] = i
+				newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+				if newFrame == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = newFrame
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					val := float64(numeric.(condition.FloatOperand))
+					if !hasValue || val < minVal {
+						minVal = val
+						hasValue = true
+					}
+				}
+			}
+
+			if !hasValue {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(minVal)
+		}, pathOperand, elemOperand)
+}
+
+// maxOf(array_path, element_name, expression) - Maximum value from array
+func (repo *CompareCondRepo) funcMaxOf(n *ast.CallExpr, scope *ForEachScope) condition.Operand {
+	if len(n.Args) != 3 {
+		return condition.NewErrorOperand(fmt.Errorf("maxOf() requires 3 arguments: array_path, element_name, expression"))
+	}
+
+	pathOperand := repo.evalAstNode(n.Args[0], scope)
+	if pathOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("maxOf() first argument must be string path"))
+	}
+	arrayPath := string(pathOperand.(condition.StringOperand))
+
+	elemOperand := repo.evalAstNode(n.Args[1], scope)
+	if elemOperand.GetKind() != condition.StringOperandKind {
+		return condition.NewErrorOperand(fmt.Errorf("maxOf() element name must be string"))
+	}
+	elementName := string(elemOperand.(condition.StringOperand))
+
+	exprAst := n.Args[2]
+
+	arrayAddress, err := getAttributePathAddress(arrayPath+"[]", scope)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+
+	scopeForPath, expandedPath := expandPath(arrayPath+"[]", scope)
+	addr, err := scopeForPath.AttrDictRec.AttributePathToAddress(expandedPath)
+	if err != nil {
+		return condition.NewErrorOperand(err)
+	}
+	newDictRec := scopeForPath.AttrDictRec.AddressToDictionaryRec(addr)
+	newPath := scopeForPath.AttrDictRec.AddressToFullPath(addr)
+
+	newScope := &ForEachScope{
+		Path:         newPath,
+		Element:      elementName,
+		NestingLevel: scope.NestingLevel + 1,
+		ParentScope:  scope,
+		AttrDictRec:  newDictRec,
+	}
+
+	exprOperand := repo.evalAstNode(exprAst, newScope)
+	if exprOperand.GetKind() == condition.ErrorOperandKind {
+		return exprOperand
+	}
+
+	return repo.CondFactory.NewExprOperand(
+		func(event *objectmap.ObjectAttributeMap, frames []interface{}) condition.Operand {
+			numElements, err := event.GetNumElementsAtAddress(arrayAddress, frames)
+			if err != nil {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			if numElements == 0 {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			maxVal := math.Inf(-1)
+			hasValue := false
+			parentsFrame := frames[arrayAddress.ParentParameterIndex]
+			currentAddressLen := len(arrayAddress.Address)
+			currentAddress := make([]int, currentAddressLen+1)
+			copy(currentAddress, arrayAddress.Address)
+
+			for i := 0; i < numElements; i++ {
+				currentAddress[currentAddressLen] = i
+				newFrame := objectmap.GetNestedAttributeByAddress(parentsFrame, currentAddress)
+
+				if newFrame == nil {
+					continue
+				}
+
+				frames[newScope.NestingLevel] = newFrame
+
+				result := exprOperand.Evaluate(event, frames)
+
+				if result.GetKind() == condition.UndefinedOperandKind ||
+					result.GetKind() == condition.NullOperandKind {
+					continue
+				}
+
+				numeric := result.Convert(condition.FloatOperandKind)
+				if numeric.GetKind() != condition.ErrorOperandKind {
+					val := float64(numeric.(condition.FloatOperand))
+					if !hasValue || val > maxVal {
+						maxVal = val
+						hasValue = true
+					}
+				}
+			}
+
+			if !hasValue {
+				return condition.NewUndefinedOperand(nil)
+			}
+
+			return condition.NewFloatOperand(maxVal)
+		}, pathOperand, elemOperand)
+}
+
 func (repo *CompareCondRepo) processContains(n *ast.CallExpr, scope *ForEachScope) condition.Condition {
 	evalCatRec := repo.NewEvalCategoryRec(nil)
 	if scope.Evaluator != nil {
@@ -2149,10 +2620,20 @@ func (repo *CompareCondRepo) preprocessAstExpr(node ast.Expr, scope *ForEachScop
 			return funcIsEqualToAnyWithDate(repo, n, scope)
 		case "isEqualToAny":
 			return repo.funcIsEqualToAny(n, scope)
-		case "forAll":
+		case "all":
 			return repo.funcForAll(n, scope)
-		case "forSome":
+		case "any":
 			return repo.funcForSome(n, scope)
+		case "count":
+			return repo.funcCount(n, scope)
+		case "sum":
+			return repo.funcSum(n, scope)
+		case "avg":
+			return repo.funcAvg(n, scope)
+		case "minOf":
+			return repo.funcMinOf(n, scope)
+		case "maxOf":
+			return repo.funcMaxOf(n, scope)
 		case "length":
 			return repo.funcLength(n, scope)
 		case "days":

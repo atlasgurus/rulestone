@@ -497,32 +497,59 @@ expression: session > now() - hours(2.5)    # 2.5 hours
 
 #### Quantifier Functions
 
+Check if all or any elements satisfy a condition:
+
 ```yaml
 # All elements must satisfy condition
-expression: forAll("items", "item", item.price > 0)
+expression: all("items", "item", item.price > 0)
+expression: all("items", "item", item.valid == true)
 
 # At least one element must satisfy condition
-expression: forSome("items", "item", item.status == "shipped")
+expression: any("items", "item", item.status == "shipped")
+expression: any("orders", "order", order.status == "pending")
 ```
 
-#### Array Functions
+#### Array Aggregation Functions
+
+Aggregate values from array elements:
 
 ```yaml
-# Get array length
-expression: length("items") > 0
+# Count elements matching condition
+expression: count("items", "item", item.active == true) > 5
+expression: count("orders", "order", order.status == "pending" && order.total > 100) >= 2
 
-# Check array size range
-expression: length("items") >= 2 && length("items") <= 10
+# Sum values
+expression: sum("items", "item", item.price) > 1000
+expression: sum("items", "item", item.price * item.quantity) > 500
 
-# Combine with other conditions
-expression: length("items") > 0 && forAll("items", "item", item.validated == true)
+# Sum with conditional (using if)
+expression: sum("items", "item", if(item.active, item.price, 0)) > 100
+
+# Average values
+expression: avg("ratings", "r", r) >= 4.0
+expression: avg("items", "item", if(item.active, item.rating, undefined)) >= 4.5
+
+# Minimum value
+expression: minOf("items", "item", item.price) < 100
+expression: minOf("products", "p", p.stock) < 10
+
+# Maximum value
+expression: maxOf("items", "item", item.price) > 500
+expression: maxOf("reviews", "r", r.stars) <= 5
 ```
 
-**Note:** `length()` returns `undefined` for missing arrays and `null` for explicit null, allowing proper semantics:
-- `length("items") > 0` handles all cases correctly (missing→false, null→false, empty→false, non-empty→true)
-- `length("items") != 0` with missing array → false (undefined != 0 → undefined)
-- To match missing OR non-empty: `items == undefined || length("items") > 0`
-- Use `hasValue("items")` to check if array exists with a value
+**Available functions**:
+- `count(array, elem, condition)` - Count elements where condition is true
+- `sum(array, elem, expression)` - Sum of expression values
+- `avg(array, elem, expression)` - Average of expression values (undefined for empty)
+- `minOf(array, elem, expression)` - Minimum value (undefined for empty)
+- `maxOf(array, elem, expression)` - Maximum value (undefined for empty)
+
+**Note**: All aggregation functions:
+- Return `undefined` for missing arrays
+- Skip `undefined` and `null` values in calculations
+- Can use `if()` for inline filtering
+- Follow the same pattern as `all()` / `any()`
 
 #### Conditional/Ternary Operator
 

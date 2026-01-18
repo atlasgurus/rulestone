@@ -452,8 +452,8 @@
 # Nested quantifiers
 - metadata:
     id: nested-forall-complex
-    description: forAll with complex conditions
-  expression: forAll("orders", "order", order.total > 100 && order.status == "completed")
+    description: all with complex conditions
+  expression: all("orders", "order", order.total > 100 && order.status == "completed")
   tests:
     - name: all orders valid
       event:
@@ -476,8 +476,8 @@
 
 - metadata:
     id: quantifier-with-arithmetic
-    description: forSome with arithmetic in condition
-  expression: forSome("items", "item", (item.price * item.quantity) > 500)
+    description: any with arithmetic in condition
+  expression: any("items", "item", (item.price * item.quantity) > 500)
   tests:
     - name: one item over threshold
       event:
@@ -499,7 +499,7 @@
 - metadata:
     id: mixed-quantifier-logic
     description: Quantifier mixed with other conditions
-  expression: (forAll("products", "p", p.inStock == true) && totalValue > 1000) || vipCustomer == true
+  expression: (all("products", "p", p.inStock == true) && totalValue > 1000) || vipCustomer == true
   tests:
     - name: all in stock and high value
       event:
@@ -519,8 +519,8 @@
 
 - metadata:
     id: complex-quantifier-condition
-    description: forSome with complex OR condition
-  expression: forSome("transactions", "t", (t.amount > threshold && t.currency == "USD") || t.flagged == true)
+    description: any with complex OR condition
+  expression: any("transactions", "t", (t.amount > threshold && t.currency == "USD") || t.flagged == true)
   tests:
     - name: high USD transaction
       event:
@@ -546,7 +546,7 @@
 - metadata:
     id: empty-quantifier-complex
     description: Empty array with quantifier in complex expression
-  expression: (a > 10 && forAll("items", "item", item.valid == true)) || b == 1
+  expression: (a > 10 && all("items", "item", item.valid == true)) || b == 1
   tests:
     - name: OR branch matches
       event:

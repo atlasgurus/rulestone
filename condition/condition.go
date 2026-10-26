@@ -6,10 +6,64 @@ import (
 	"github.com/atlasgurus/rulestone/immutable"
 	"github.com/atlasgurus/rulestone/objectmap"
 	"github.com/atlasgurus/rulestone/types"
+	"math"
 	"reflect"
 	"strconv"
 	"time"
 )
+
+// mixUint64 is the splitmix64 finalizer.  Hashes derived from raw bit patterns
+// (see FloatOperand.GetHash) carry most of their entropy in the high bits, but
+// the hashmap and hashset used for interning and lookup pick a bucket with
+// hash & (capacity-1).  Mixing spreads the entropy over the low bits so that
+// values like 0.5, 1 and 100 do not all land in the same bucket.
+func mixUint64(x uint64) uint64 {
+	x ^= x >> 30
+	x *= 0xbf58476d1ce4e5b9
+	x ^= x >> 27
+	x *= 0x94d049bb133111eb
+	x ^= x >> 31
+	return x
+}
+
+// conditionsEqual compares two condition slices element by element, in order.
+func conditionsEqual(a, b []Condition) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equals(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// operandsEqual compares two operand slices element by element, in order.
+func operandsEqual(a, b []Operand) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equals(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// intsEqual compares two address slices element by element, in order.
+func intsEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
 
 type CondKind int8
 
@@ -76,7 +130,8 @@ func (c *AndCond) GetHash() uint64 {
 }
 
 func (c *AndCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*AndCond)
+	return ok && conditionsEqual(c.Operands, o.Operands)
 }
 
 type OrCond struct {
@@ -105,7 +160,8 @@ func (c *OrCond) GetHash() uint64 {
 }
 
 func (c *OrCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*OrCond)
+	return ok && conditionsEqual(c.Operands, o.Operands)
 }
 
 type NotCond struct {
@@ -133,7 +189,8 @@ func (c *NotCond) GetHash() uint64 {
 }
 
 func (c *NotCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*NotCond)
+	return ok && c.Operand.Equals(o.Operand)
 }
 
 type CategoryCond struct {
@@ -158,7 +215,8 @@ func (c *CategoryCond) GetHash() uint64 {
 }
 
 func (c *CategoryCond) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*CategoryCond)
+	return ok && c.Cat == o.Cat
 }
 
 type ErrorCondition struct {
@@ -177,7 +235,8 @@ func (c *ErrorCondition) GetHash() uint64 {
 }
 
 func (c *ErrorCondition) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*ErrorCondition)
+	return ok && c.Err.Error() == o.Err.Error()
 }
 
 func (c *ErrorCondition) GetOperands() []Condition {
@@ -204,7 +263,8 @@ func (c *ExprCondition) GetHash() uint64 {
 }
 
 func (c *ExprCondition) Equals(v immutable.SetElement) bool {
-	return c.GetHash() == v.(Condition).GetHash()
+	o, ok := v.(*ExprCondition)
+	return ok && c.Expr == o.Expr
 }
 
 func (c *ExprCondition) GetOperands() []Condition {
@@ -290,7 +350,8 @@ func (v *ListOperand) GetHash() uint64 {
 }
 
 func (v *ListOperand) Equals(o immutable.SetElement) bool {
-	return v.GetHash() == o.GetHash()
+	other, ok := o.(*ListOperand)
+	return ok && operandsEqual(v.List, other.List)
 }
 
 func (v *ListOperand) Greater(o Operand) bool {
@@ -304,17 +365,23 @@ func (v *ListOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []int
 type ExprOperand struct {
 	Func EvalOperandFunc
 	Args []Operand
-	Hash uint64
+	// FuncPtr is the code pointer of Func.  Closures created from the same
+	// function literal share it, which is what makes interning possible: the
+	// engine builds a fresh closure per access but expects equal ones to merge.
+	FuncPtr uintptr
+	Hash    uint64
 }
 
 func NewExprOperand(f EvalOperandFunc, args ...Operand) *ExprOperand {
+	funcPtr := reflect.ValueOf(f).Pointer()
 	return &ExprOperand{
-		Func: f,
-		Args: args,
+		Func:    f,
+		Args:    args,
+		FuncPtr: funcPtr,
 		Hash: immutable.HashInt(
 			[]uint64{
 				uint64(ExpressionOperandKind),
-				uint64(reflect.ValueOf(f).Pointer()),
+				uint64(funcPtr),
 				immutable.HashInt(types.MapSlice(args, func(o Operand) uint64 { return o.GetHash() }))})}
 }
 
@@ -334,8 +401,13 @@ func (v *ExprOperand) GetHash() uint64 {
 	return v.Hash
 }
 
+// Equals compares the code pointer and the arguments.  Values a closure
+// captures beyond its arguments are not visible here, which is the same
+// assumption the hash made; the engine only ever builds closures whose
+// behaviour is fully determined by Args.
 func (v *ExprOperand) Equals(o immutable.SetElement) bool {
-	return v.GetHash() == o.GetHash()
+	other, ok := o.(*ExprOperand)
+	return ok && v.FuncPtr == other.FuncPtr && operandsEqual(v.Args, other.Args)
 }
 
 func (v *ExprOperand) Greater(o Operand) bool {
@@ -429,8 +501,16 @@ func (v FloatOperand) GetKind() OperandKind {
 	return FloatOperandKind
 }
 
+// GetHash hashes the full IEEE-754 bit pattern.  Converting to uint64 instead
+// would drop the fraction, giving every constant in [0,1) the same hash, and
+// would be implementation-defined for negative and out-of-range values.
 func (v FloatOperand) GetHash() uint64 {
-	return uint64(v)
+	f := float64(v)
+	if f == 0 {
+		// -0 == +0, so the two must hash alike.
+		f = 0
+	}
+	return mixUint64(math.Float64bits(f) ^ uint64(FloatOperandKind)<<56)
 }
 
 func (v FloatOperand) Equals(o immutable.SetElement) bool {
@@ -710,8 +790,17 @@ func (v *AddressOperand) GetHash() uint64 {
 	return v.Hash
 }
 
+// Equals compares ExprOperand by identity rather than structurally, matching
+// what the hash encodes: address operands carrying a computed expression are
+// not interned, so two of them are the same operand only if they are the same
+// object.
 func (v *AddressOperand) Equals(o immutable.SetElement) bool {
-	return v.Hash == o.GetHash()
+	other, ok := o.(*AddressOperand)
+	return ok &&
+		v.ParameterIndex == other.ParameterIndex &&
+		v.ExprOperand == other.ExprOperand &&
+		intsEqual(v.Address, other.Address) &&
+		intsEqual(v.FullAddress, other.FullAddress)
 }
 
 func (v *AddressOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
@@ -758,14 +847,14 @@ func (v *SelOperand) GetHash() uint64 {
 }
 
 func (v *SelOperand) Equals(o immutable.SetElement) bool {
-	return v.Hash == o.GetHash()
-	/*
-		return o.GetKind() == AddressOperandKind &&
-			// Path is not the best proxy attribute for compare, but we may not even use this, so do not bother for now.
-			v.Base.Equals(o.(*AddressOperand).Base) &&
-			v.Selector == o.(*AddressOperand).Selector &&
-			v.IndexExpr == o.(*AddressOperand).IndexExpr
-	*/
+	other, ok := o.(*SelOperand)
+	if !ok || v.Selector != other.Selector {
+		return false
+	}
+	if v.Base == nil || other.Base == nil {
+		return v.Base == nil && other.Base == nil
+	}
+	return v.Base.Equals(other.Base)
 }
 
 func (v *SelOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
@@ -804,14 +893,8 @@ func (v *IndexOperand) GetHash() uint64 {
 }
 
 func (v *IndexOperand) Equals(o immutable.SetElement) bool {
-	return v.Hash == o.GetHash()
-	/*
-		return o.GetKind() == AddressOperandKind &&
-			// Path is not the best proxy attribute for compare, but we may not even use this, so do not bother for now.
-			v.Base.Equals(o.(*AddressOperand).Base) &&
-			v.Selector == o.(*AddressOperand).Selector &&
-			v.IndexExpr == o.(*AddressOperand).IndexExpr
-	*/
+	other, ok := o.(*IndexOperand)
+	return ok && v.Base.Equals(other.Base) && v.IndexExpr.Equals(other.IndexExpr)
 }
 
 func (v *IndexOperand) Evaluate(event *objectmap.ObjectAttributeMap, frames []interface{}) Operand {
@@ -976,8 +1059,15 @@ func (cond *CompareCondition) GetHash() uint64 {
 	return cond.Hash
 }
 
+// Equals compares the operator and both operands.  Comparing the stored hashes
+// instead would make any hash collision a semantic identity, merging distinct
+// comparisons such as x >= 0.95 and x >= 0.97 into one.
 func (cond *CompareCondition) Equals(v immutable.SetElement) bool {
-	return cond.Hash == v.GetHash()
+	o, ok := v.(*CompareCondition)
+	return ok &&
+		cond.CompareOp == o.CompareOp &&
+		cond.LeftOperand.Equals(o.LeftOperand) &&
+		cond.RightOperand.Equals(o.RightOperand)
 }
 
 type ForEach interface {

@@ -6,6 +6,7 @@ import (
 	"github.com/atlasgurus/rulestone/immutable"
 	"github.com/atlasgurus/rulestone/objectmap"
 	"github.com/atlasgurus/rulestone/types"
+	"math"
 	"reflect"
 	"strconv"
 	"time"
@@ -429,8 +430,17 @@ func (v FloatOperand) GetKind() OperandKind {
 	return FloatOperandKind
 }
 
+// GetHash hashes the full IEEE-754 bit pattern together with the operand kind.
+// Converting to uint64 instead would drop the fraction, giving every constant
+// in [0,1) the same hash, and would be implementation-defined for negative and
+// out-of-range values.
 func (v FloatOperand) GetHash() uint64 {
-	return uint64(v)
+	f := float64(v)
+	if f == 0 {
+		// -0 == +0, so the two must hash alike.
+		f = 0
+	}
+	return immutable.HashInt([]uint64{uint64(FloatOperandKind), math.Float64bits(f)})
 }
 
 func (v FloatOperand) Equals(o immutable.SetElement) bool {
